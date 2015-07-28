@@ -1,0 +1,248 @@
+\pagebreak
+\section{Example 4: Value Profiling}
+\label{sec:example4}
+
+This example is the most involved example, and performs fairly
+obtrusive instrumentation to profile the values assigned to the
+general-purpose registers during the execution of a program.  This
+example uses \emph{after} instrumentation to inject instrumentation
+after every instruction that writes an ISA-visible register.  We then
+instruct SASSI to extract and pass along information about each SASS
+instruction's register usage, which our handler uses to inspect
+register values.
+
+As with our other example, before walking through the specifics of the
+example, let's just build and run it. If you have not done so, please
+setup your environment per the instructions in
+Section~\ref{sec:environment}. 
+\begin{lstlisting}[style=BashInputStyle]
+# Go to the example directory.
+cd $SASSI_REPO/example
+make clean
+# Instrument the application and link with the instrumentation library.
+make valueprof
+# Run the example. (Alternatively, type 'make run')
+./matrixMul
+\end{lstlisting}
+
+This can take a really long time to finish running because the
+slowdowns of instrumentation for this example are fairly severe
+($1000\times$).  Assuming everything went well, you should now have a
+file in that directory called \texttt{sassi-valueprof.txt}.  Here are
+the abridged contents of the file for \texttt{sm\_50}:
+\begin{verbatim}
+Value profiling results
+ADDRESS | WEIGHT | [regnum, type, scalarness, bitstring]*
+---------------------------------------------------------
+[c237528100000008, 61644800, [[1, ``uint'', SCALAR , [00000000111111111111101110100000]]]]
+[c237528100000010, 61644800, [[16, ``uint'', SCALAR , [0000000000000000000000000000TTTT]]]]
+[c237528100000018, 61644800, [[2, ``uint'', SCALAR , [000000000000000000000000000TTTTT]]]]
+...
+[c237528100000208, 616448000, [[5, ``int'', SCALAR , [00000000000000000000000000000101]]]]
+[c237528100000210, 616448000, [[4, ``float'', SCALAR , [00111100001000111101011100001010]]]]
+[c237528100000238, 616448000, [[26, ``float'', SCALAR , [00111100001000111101011100001010]]]]
+...
+\end{verbatim}
+
+The results dump the general-purpose register usage of each SASS
+instruction.  For the first instruction above, we see that it writes
+to register \texttt{1}, which is of type \texttt{uint}, and it always
+writes the same constant \texttt{[00000000111111111111101110100000]}.
+Because it writes a constant, it is also marked as \emph{scalar},
+which means every participating thread is writing the same value.  The
+next instruction writes to register \texttt{16}.  It's writes are
+always \emph{scalar} too, but slightly more interestingly it does not
+write a constant.  Instead, as the \texttt{T} represents, the bottom
+four bits assume \texttt{0} and \texttt{1}.  The top 28 bits are still
+always \texttt{0}, however.  Looking at the CUDA source, we see that
+the matrices in this example are artificially initialized to constant
+values, leading to the very high number of scalar and constant bits.
+For complete coverage of this example, please see ``Case Study III''
+in the accompanying ISCA paper in the \texttt{doc} directory.
+
+\subsection{How to compile your application}
+
+Now let's take a look at how the makefile builds the
+\texttt{matrixMul} application for this this example.  For this
+example, we instrument after all instructions that write registers.
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -I./inc  -c -O3 \
+   -gencode arch=compute_50,code=sm_50 \
+   -Xptxas --sassi-inst-after=''reg-writes'' \
+   -Xptxas --sassi-after-args=''reg-info'' \
+   -Xptxas --sassi-iff-true-predicate-handler-call \
+   -dc \
+   -o matrixMul.o matrixMul.cu
+\end{lstlisting}
+
+Lines (1) and (7) are the options that you would ordinarily compiler
+your CUDA application with.  Line (2) is required because we need the
+compiler to generate \emph{actual} not virtual code.  In this case, we
+are targetting a first-generation Maxwell card, with \texttt{sm\_50}.
+Line (3) instructs SASSI to inject instrumentation \emph{after} SASS
+instructions that write registers.  The instrumentation library for
+this example needs to know what registers are used along with the
+values in the registers, which it can obtain in objects of type
+\texttt{SASSIRegisterParams}.  On line (4), the \texttt{reg-info} flag
+will direct SASSI to pass such objects to the instrumentation
+handler. Line (5) directs SASSI to only call the instrumentation
+handler if the instruction is going to execute (i.e., the instruction
+is unpredicated, or its guarding predicate is $true$).  For
+\emph{before} instrumentation, we can easily use the
+\texttt{GetInstrWillExecute()} method to determine whether the
+instruction will execute.  This is trickier for \emph{after}
+instrumentation, where the instruction's guarding predicate could have
+been clobbered by the instruction itself.  For this example, we only
+care about instructions that executed, so this is the right option to
+use.
+
+Line (6) is required because we are going to link in the
+instrumentation handler momentarily, and cross-module calls require
+``relocatable device code.''  Please note, that the SASSI flags on
+lines (3) and (4) both contain the word \emph{after}, unlike in the
+previous examples.  Here is the message that SASSI emits for this
+example:
+\begin{verbatim}
+******************************************************************************
+*
+*                       SASSI Instrumentation Details
+*
+*  For the settings you passed in, you'll need to make sure that you have
+*  an instrumentation library with the following properties:
+*  - It MUST BE compiled using only 16 registers!! To accomplish this
+*    simply compile your library with the nvcc flag, --maxrregcount=16
+*  - It must define the following functions:
+*      __device__ void sassi_after_handler(SASSIAfterParams*,SASSIRegisterParams*)
+*
+******************************************************************************
+\end{verbatim}
+
+Notice that SASSI tells us that we have to make sure to link in a
+handler with this signature:
+\begin{lstlisting}
+__device__ void sassi_after_handler(SASSIAfterParams*,SASSIRegisterParams*);
+\end{lstlisting}
+which we have defined in a library called \texttt{libvalueprof.a}, which
+we'll describe shortly.  We link this in exactly like we did with the
+last example:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -o matrixMul matrixMul.o \
+  -gencode arch=compute_50,code=sm_50 \
+  -lcudadevrt \
+  -L/usr/local/sassi7/extras/CUPTI/lib64 -lcupti \
+  -L../instlibs/lib -lvalueprof
+\end{lstlisting}
+
+\subsection{Writing the instrumentation library}
+
+The instrumentation library that corresponds to this example is fully
+implemented in \\ \texttt{\$SASSI\_REPO/instlibs/src/valueprof.cu}.  The
+instrumentation handler portion of the library is shown in
+Figure~\ref{fig:handler-example4}.  Note, that because we specified
+the \texttt{--sassi-iff-true-predicate-handler-call} flag, this
+handler will only be called if the instruction was actually executed.
+
+Line (9) gets the lane in the warp that the current thread is running
+on.  Line (10) finds the first active thread-- this thread is going to
+be the one that all other threads compare themselves against when
+looking for \emph{scalar} values.  Line (13) gets the probably unique
+virtual PC of the SASS instruction.  We use this PC to index into a
+hashmap on line (18).  If the PC isn't in the hashmap already, it is
+added and initialized on line (19).  Thus, on line (22), we will have
+an initialized statistics counter for the instruction.  Line (23)
+simply increments a counter we maintain for this PC to track how many
+total times it has executed.
+
+Line (24) iterates over all the destination registers in the SASS
+instruction.  For each destination:
+\begin{itemize}
+\item Line 26 retrieves information about the register, including type
+  information and register number.
+\item Line 27 gets the 32-bit value in the register.
+\item Line 30 uses CUDA's \texttt{atomicAnd} operation to keep track
+  of the bits that are 1.  If a bit in the operand ever becomes 0 at
+  any point during the program, the \texttt{atomicAnd} is going to
+  sticky set it to 0.
+\item Line 31 uses CUDA's \texttt{atomicAnd} operation to keep track
+  of the bits that are 0.  Note the bitwise negation of bits, ``$\sim$''.  If a bit in the operand ever becomes 1 at
+  any point during the program, the \texttt{atomicAnd} is going to
+  sticky set it to 0.
+\item Lines (33)-(38) check and record the scalarness of the value.
+\end{itemize}
+
+\begin{figure*}[h!]
+\begin{lstlisting}[numbers=left,numbersep=4pt]
+///////////////////////////////////////////////////////////////////////////////////
+//
+//  This example uses the atomic bitwise operations to keep track of the constant
+//  bits produced by each instruction.
+//
+///////////////////////////////////////////////////////////////////////////////////
+__device__ void sassi_after_handler(SASSIAfterParams* ap, SASSIRegisterParams *rp)
+{
+  int threadIdxInWarp = get_laneid();
+  int firstActiveThread = (__ffs(__ballot(1))-1); /*leader*/
+
+  // Get the "probably unique" PC.
+  uint64_t pupc = ap->GetPUPC();
+
+  // The dictionary will return the SASSOp associated with this PC, or insert
+  // it if it does not exist.  If it does not exist, the lambda passed as
+  // the second argument to getOrInit is used to initialize the SASSOp.
+  SASSOp *stats = sassi_stats->getOrInit(pupc, [&rp](SASSOp *v) {
+      SASSOp::init(v, rp);
+    });
+  
+  // Record the number of times the instruction executes.
+  atomicAdd(&(stats->weight), 1);
+  for (int d = 0; d < rp->GetNumGPRDsts(); d++) {
+    // Get the value in each destination register.
+    SASSIRegisterParams::GPRRegInfo regInfo = rp->GetGPRDst(d);
+    SASSIRegisterParams::GPRRegValue regVal = rp->GetRegValue(ap, regInfo); 
+
+    // Use atomic AND operations to track constant bits.
+    atomicAnd(&(stats->operands[d].constantOnes), regVal.asInt); 
+    atomicAnd(&(stats->operands[d].constantZeros), ~regVal.asInt);
+
+    int leaderValue = __shfl(regVal.asInt, firstActiveThread); 
+    int allSame = (__all(regVal.asInt == leaderValue) != 0);
+    // The warp leader gets to write results.
+    if (threadIdxInWarp == firstActiveThread) { 
+      atomicAnd(&(stats->operands[d].isScalar), allSame);
+    }
+  }
+}
+\end{lstlisting}
+\caption{Instrumentation handler portion of the value profiling
+  library.  See the library's source code for the full example.}
+\label{fig:handler-example4}
+\end{figure*}
+
+\subsubsection{Building the handler as a library}
+
+We build the library exactly the way we did for the \texttt{ophist}
+library.
+
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/cuda-7.0/bin/nvcc \
+  -ccbin /usr/local/gcc-4.8.4/bin/ -std=c++11 \
+  -O3 \
+  -gencode arch=compute_50,code=sm_50 \
+  -c -rdc=true -o valueprof.o \
+  valueprof.cu \
+  --maxrregcount=16 \
+  -I/usr/local/sassi7/include \
+  -I/usr/local/sassi7/extras/CUPTI/include/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/utils/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/include
+ar r /home/mstephenson/Projects/sassi/instlibs/lib/libvalueprof.a valueprof.o
+ranlib /home/mstephenson/Projects/sassi/instlibs/lib/libvalueprof.a
+\end{lstlisting}
+
+The instrumentation libraries in the \texttt{instlibs} directory rely on C++-11 support,
+hence line (2).  We also build the instrumentation library to support
+the architecture we plan to run on in (4).  Change this to match your
+architecture.  Finally, of supreme importance, we instruction NVCC to
+use only 16 registers for the handler in (7).  We include
+\emph{include} paths in (8)-(11).  Finally, lines (12) and (13) bundle
+the single object file into a library.

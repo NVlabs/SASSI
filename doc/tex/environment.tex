@@ -1,0 +1,33 @@
+\section{Setting up your environment for the examples}
+\label{sec:environment}
+
+The next four sections walk users through complete examples.  First,
+let's compile all the instrumentation handlers that come with SASSI,
+including the ones the next few sections cover.  First, navigate to
+the instrumentation library directory:
+\begin{lstlisting}[style=BashInputStyle]
+cd $SASSI_REPO/instlibs
+\end{lstlisting}
+Next, we need to edit the file \texttt{env.mk}.  There are four
+environment variables we need to set:
+\begin{itemize}
+\item \texttt{CUDA\_HOME}: This is the location of your CUDA 7 root.
+\item \texttt{SASSI\_HOME}: This is the location of your SASSI
+  installation root (not the repository root).
+\item \texttt{CCBIN}: The location of the C++-11 compiler you want to
+  use. 
+\item \texttt{GENCODE}: What GPUs you want to compile your
+  instrumentation libraries for. \hl{Remember you must specify a
+    \emph{real} architecture, not a virtual one.}
+\end{itemize}
+
+After editing the file, you \emph{should} be able to simply invoke
+\texttt{make} (in \texttt{\$SASSI\_REPO/instlibs}), which will compile
+the instrumentation libraries and install them in
+\texttt{\$SASSI\_REPO/instlibs/lib}.
+
+The examples in the next several sections all rely heavily on NVIDIA's
+CUPTI library, so let's add it to our \texttt{LD\_LIBRARY\_PATH}:
+\begin{lstlisting}[style=BashInputStyle]
+export LD_LIBRARY_PATH=$SASSI_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+\end{lstlisting}

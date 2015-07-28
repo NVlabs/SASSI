@@ -1,0 +1,81 @@
+\documentclass{article}
+
+\usepackage[letterpaper, portrait, margin=1in]{geometry}
+\usepackage{soul}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{fancyhdr}
+\newcolumntype{L}[1]{>{\raggedright\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+
+\pagestyle{fancy}
+\lhead{}
+\chead{}
+\rhead{NVIDIA Research}
+\lfoot{}
+\cfoot{\thepage}
+\rfoot{}
+\renewcommand\headrulewidth{0pt}
+\renewcommand\footrulewidth{0pt}
+
+\definecolor{teagreen}{rgb}{0.82, 0.94, 0.75}
+
+\lstdefinestyle{BashInputStyle}{
+  language=bash,
+  basicstyle=\ttfamily\normalsize,
+  numbers=left,
+  numberstyle=\tiny,
+  numbersep=3pt,
+  frame=tb,
+  columns=fullflexible,
+  keywordstyle=\color{black},
+  backgroundcolor=\color{teagreen},
+}
+
+\lstset{language=C++, 
+  basicstyle=\ttfamily\small, 
+  keywordstyle=\color{blue},
+  backgroundcolor=\color{teagreen},
+  commentstyle=\bfseries,
+  morekeywords={__device__},
+  frame=tb,
+  columns=fullflexible
+}
+
+\title{SASSI User Guide}
+\author{Mark Stephenson (mstephenson@nvidia.com)}
+
+\begin{document}
+\maketitle
+
+\pagenumbering{Roman}
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\listoftables
+\newpage
+\pagenumbering{arabic}
+
+\input{introduction}
+\input{installing}
+\input{background}
+\input{instrumenting}
+\input{required}
+\input{environment}
+\input{example1}
+\input{example2}
+\input{example3}
+\input{example4}
+\input{command-line}
+\input{restrictions}
+\input{discussion}
+
+\section{Bug Reports}
+
+We plan to track issues using GitHub's issue tracking features.
+
+\end{document}

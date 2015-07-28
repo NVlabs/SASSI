@@ -1,0 +1,17 @@
+\section{Discussion}
+
+SASSI has some clear shortcomings.  First, as we mentioned in the
+introduction, it is not a binary instrumenter, so source code is
+required.  Furthermore, the additional complexity of the build process
+has proven to be fairly difficult for some users.  A true binary
+instrumentation approach like that of \texttt{cuda-memcheck} would
+make the process seamless.  On the other hand, there are some
+advantages: we are investigating porting the tool to the driver, which
+would allow us to handle graphics applications (which are
+JITted)\footnote{For this case, it does not make sense to have the
+  driver compile the application, then disassemble it, patch it, then
+  re-apply.}; in
+addition, SASSI can gather potentially useful properties that the
+compiler knows about such as register liveness, operand datatypes,
+basic block boundaries, etc.  Related to this, the instrumentation
+code should be much less intrusive than that of binary patching.

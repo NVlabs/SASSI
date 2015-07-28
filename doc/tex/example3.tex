@@ -1,0 +1,217 @@
+\pagebreak
+\section{Example 3: Memory Divergence}
+\label{sec:example3}
+
+This example, as with the previous example, performs \emph{before}
+instrumentation, and requests that SASSI pass an extra parameter to
+the instrumentation handler.  However, in this case, we inject
+instrumentation before operations that touch (read or write) memory,
+and we pass along information about instruction memory usage.
+
+Before walking through the specifics of the example, let's just build
+and run it. If you have not done so, please setup your environment
+per the instructions in Section~\ref{sec:environment}.  Now, do:
+\begin{lstlisting}[style=BashInputStyle]
+# Go to the example directory.
+cd $SASSI_REPO/example
+make clean
+# Instrument the application and link with the instrumentation library.
+make memdiverge
+# Run the example. (Alternatively, type 'make run')
+./matrixMul
+\end{lstlisting}
+
+This can take some time to finish running.  Assuming everything went
+well, you should now have a file in that directory called
+\texttt{sassi-memdiverge.txt}.  The memory behavior of the sample
+application is so regular that these results are fairly boring.  For
+\texttt{sm\_50}, these results show that for every load and store to
+\emph{global} memory, all 32 threads in a warp were active, and within
+each warp, four cache lines were touched.  The rationale for printing
+out a matrix will become more clear later in this section.  For
+complete coverage of this example, please see ``Case Study II'' in the
+accompanying ISCA paper in the \texttt{doc} directory.
+
+\subsection{How to compile your application}
+
+Now let's take a look at how the makefile builds the
+\texttt{matrixMul} application for this this example.  For this
+example, we are only interested in memory operations, so while we
+could still add instrumentation before all instructions, it will be
+more efficient to limit our instrumentation to only memory operations:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -I./inc  -c -O3 \
+   -gencode arch=compute_50,code=sm_50 \
+   -Xptxas --sassi-inst-before=''memory'' \
+   -Xptxas --sassi-before-args=''mem-info'' \
+   -dc \
+   -o matrixMul.o matrixMul.cu
+\end{lstlisting}
+
+Lines (1) and (6) are the options that you would ordinarily compiler
+your CUDA application with.  Line (2) is required because we need the
+compiler to generate \emph{actual} not virtual code.  In this case, we
+are targetting a first-generation Maxwell card, with \texttt{sm\_50}.
+Line (3) instructs SASSI to inject instrumentation before SASS
+instructions that touch memory only.  It is worth noting that SASSI
+does not consider loads from the constant memory window to be memory
+operations.  The instrumentation library for this
+example needs to know the address that the memory operation targets,
+and this information is available in objects of
+\texttt{SASSIMemoryParams}.  The
+\texttt{mem-info} flag will direct SASSI to pass such objects
+to the instrumentation handler.  This is done in line (4).  Line (5)
+is required because we are going to link in the instrumentation
+handler momentarily, and cross-module calls require ``relocatable
+device code.''  Here is the message that SASSI emits for this example:
+\begin{verbatim}
+******************************************************************************
+*
+*                       SASSI Instrumentation Details
+*
+*  For the settings you passed in, you'll need to make sure that you have
+*  an instrumentation library with the following properties:
+*  - It MUST BE compiled using only 16 registers!! To accomplish this
+*    simply compile your library with the nvcc flag, --maxrregcount=16
+*  - It must define the following functions:
+*      __device__ void sassi_before_handler(SASSIBeforeParams*,SASSIMemoryParams*)
+*
+******************************************************************************
+\end{verbatim}
+
+Notice that SASSI tells us that we have to make sure to link in a
+handler with this signature:
+\begin{lstlisting}
+__device__ void sassi_before_handler(SASSIBeforeParams*,SASSIMemoryParams*);
+\end{lstlisting}
+which we have defined in a library called \texttt{libmemdiverge.a}, which
+we'll describe shortly.  We link this in exactly like we did with the
+last example:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -o matrixMul matrixMul.o \
+  -gencode arch=compute_50,code=sm_50 \
+  -lcudadevrt \
+  -L/usr/local/sassi7/extras/CUPTI/lib64 -lcupti \
+  -L../instlibs/lib -lmemdiverge
+\end{lstlisting}
+
+\subsection{Writing the instrumentation library}
+
+The instrumentation library that corresponds to this example is fully
+implemented in \\ \texttt{\$SASSI\_REPO/instlibs/src/memdiverge.cu}.
+The instrumentation handler portion of the library is shown in
+Figure~\ref{fig:handler-example3}.  This example aims to create a
+$32\times32$ matrix, where the rows of the matrix tally the number of
+threads that were active for each warp's invocation of a memory
+operation, and the columns tally the number of cache lines touched by
+the memory operation.  The code then, simply determines for each
+memory operation, 1) how many threads in the warp are active
+(\texttt{numActive}), and 2) how many unique cache lines are touched
+by the active threads (\texttt{unique}).  At the end of the handler on
+line (44), we simply increment the counter associated with
+\texttt{numActive} and \texttt{unique}.  
+
+On line (13), we get the address of the memory operation using the
+\texttt{GetAddress()} method of the \texttt{SASSIMemoryParams} object
+passed in.  On line (15), we filter out all memory accesses except
+global memory requests (i.e., we don't consider \emph{shared} or
+\emph{local} requests), though it would be trivial to consider other
+memory windows instead.  On line (20), we find out the cache line to
+which the address maps. 
+
+Line (22) uses \texttt{\_\_ballot()}, a commonly used warp-collective
+CUDA function, to determine how many threads in the warp are actively
+participating.  Line (24) uses \texttt{\_\_popc()}, another built-in
+CUDA function, to count the number of set bits and report the number
+of active threads.  The while loop in (25)-(26) uses
+\texttt{\_\_ffs()}, \texttt{\_\_ballot()}, and \texttt{\_\_broadcast()}
+to determine the number of unique values stored in the
+\texttt{lineAddr} variable across the warp.  Every thread in the warp
+computes the same value for \texttt{unique}, but we only let the first
+active theard commit the results on line (43).
+
+\begin{figure*}[h!]
+\begin{lstlisting}[numbers=left,numbersep=4pt]
+/// The counters that we will use to record our statistics.
+__managed__ unsigned long long sassi_counters[WARP_SIZE + 1][WARP_SIZE + 1];
+
+///////////////////////////////////////////////////////////////////////////////////
+/// 
+/// This is the function that will be inserted before every memory operation. 
+/// 
+///////////////////////////////////////////////////////////////////////////////////
+__device__ void sassi_before_handler(SASSIBeforeParams *bp, SASSIMemoryParams *mp)
+{
+  if (bp->GetInstrWillExecute())
+  {
+    intptr_t addrAsInt = mp->GetAddress();
+    // Don't look at shared or local memory.
+    if (__isGlobal((void*)addrAsInt)) { 
+      // The number of unique addresses across the warp 
+      unsigned unique = 0;   // for the instrumented instruction.
+
+      // Shift off the offset bits into the cache line.
+      intptr_t lineAddr =  addrAsInt >> LINE_BITS;
+
+      int workset = __ballot(1);
+      int firstActive = __ffs(workset) - 1;
+      int numActive = __popc(workset);
+      while (workset) {
+	// Elect a leader, get its line, see who all matches it.
+	int leader = __ffs(workset) - 1;
+	intptr_t leadersAddr = __broadcast<intptr_t>(lineAddr, leader);
+	int notMatchesLeader = __ballot(leadersAddr != lineAddr);
+
+	// We have accounted for all values that match the leader's.
+	// Let's remove them all from the workset.
+	workset = workset & notMatchesLeader;
+	unique++;
+	assert(unique <= 32);
+      }
+
+      assert(unique > 0 && unique <= 32);
+
+      // Each thread independently computed 'numActive' and 'unique'.
+      // Let's let the first active thread actually tally the result.
+      int threadsLaneId = get_laneid();
+      if (threadsLaneId == firstActive) {
+	atomicAdd(&(sassi_counters[numActive][unique]), 1LL);
+      }
+    }
+  }
+}
+\end{lstlisting}
+\caption{Instrumentation handler portion of the memory divergence
+  library.  See the library's source code for the full example.}
+\label{fig:handler-example3}
+\end{figure*}
+
+\vfill\eject
+\subsubsection{Building the handler as a library}
+
+We build the library exactly the way we did for the \texttt{ophist}
+library.
+
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/cuda-7.0/bin/nvcc \
+  -ccbin /usr/local/gcc-4.8.4/bin/ -std=c++11 \
+  -O3 \
+  -gencode arch=compute_50,code=sm_50 \
+  -c -rdc=true -o memdiverge.o \
+  memdiverge.cu \
+  --maxrregcount=16 \
+  -I/usr/local/sassi7/include \
+  -I/usr/local/sassi7/extras/CUPTI/include/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/utils/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/include
+ar r /home/mstephenson/Projects/sassi/instlibs/lib/libmemdiverge.a memdiverge.o
+ranlib /home/mstephenson/Projects/sassi/instlibs/lib/libmemdiverge.a
+\end{lstlisting}
+
+The instrumentation libraries in the \texttt{instlibs} directory rely on C++-11 support,
+hence line (2).  We also build the instrumentation library to support
+the architecture we plan to run on in (4).  Change this to match your
+architecture.  Finally, of supreme importance, we instruction NVCC to
+use only 16 registers for the handler in (7).  We include
+\emph{include} paths in (8)-(11).  Finally, lines (12) and (13) bundle
+the single object file into a library.

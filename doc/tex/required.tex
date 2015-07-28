@@ -1,0 +1,49 @@
+\section{\hl{IMPORTANT: Required compiler flags}}
+\label{sec:important-required}
+
+This section discusses some flags and constraints that that SASSI
+requires for proper operation.  While the complete examples that we
+show in the next several sections will discuss these flags and
+constraints, it is important to highlight them here, because \hl{
+  failure to follow this recipe will cause your instrumented programs
+  to fail:}
+
+\begin{itemize}
+  \item \hl{You must compile your instrumentation handlers using only
+    16 registers:} GPGPU programs often using a staggering number of
+    registers.  The SASSI approach of injecting function calls implies
+    that live registers must be saved and restored across call sites.
+    By forcing the instrumentation handlers to use only 16 registers,
+    SASSI can drastically limit the number of saves and restores
+    required across handler call boundaries.  SASSI instrumentation
+    will only save and restore the first 16 live registers, so if your
+    handler uses registers outside this set, there's a good chance
+    your instrumented program will break.  \hl{This restriction only
+      applies to the instrumentation handlers, not the programs you
+      instrument-- they can still use as many registers as the user deems
+      necessary.}  We can trivially set the number of registers to 16
+    with the following \texttt{nvcc} flag:
+    \texttt{--maxrregcount=16}.
+  \item \hl{You must explicitly specify what \emph{code} you want to
+    generate:} The CUDA toolchain allows users to generate two forms
+    of code: virtual and real ISA code.  In the case that you generate
+    virtual ISA code (e.g., \texttt{compute\_35}, \texttt{compute\_50}), the display
+    driver will just-in-time compile your code when it is loaded.
+    This will not work for SASSI because SASSI is not in the driver's
+    compiler.  \hl{Instead, you must specify a real ISA, which always
+    starts with an ``sm'' (e.g., \texttt{sm\_35}, \texttt{sm\_50}).  This will cause the
+    toolchain to precompile your code with \texttt{ptxas}.}  For
+    example, if we are targeting an \texttt{sm\_50}, I would probably
+    supply the following option to \texttt{nvcc} to generate the
+    correct code: \texttt{-gencode arch=compute\_50,}\hl{\texttt{code=sm\_50}}.
+    Please run \texttt{nvcc -h} for details about this option.
+  \item \hl{You must generate position independent code with
+    \texttt{-dc} (or equivalently, \texttt{-rcd=true}):} SASSI
+    instrumentation handlers are linked in with an instrumented
+    application.  To make ``cross-module'' calls with the CUDA
+    toolchain, you must use this flag.  While position independent
+    code adds modularity to GPU programs and brings CUDA more in line
+    with general purpose computing, it can affect the performance of
+    the generated code, sometimes significantly.  Future work will try
+    to remove this requirement.
+\end{itemize}

@@ -1,0 +1,42 @@
+\section{Introduction}
+
+This document describes SASSI, a selective instrumentation framework
+for NVIDIA GPUs.  SASSI stands for SASS Instrumenter, where SASS is
+NVIDIA's name for its native ISA.  SASSI is a pass in NVIDIA's backend
+compiler, \texttt{ptxas}, that selectively inserts instrumentation
+code.  The purpose of SASSI is to allow users to measure or modify
+\texttt{ptxas}-generated SASS by injecting instrumentation code
+\emph{during} code generation.
+
+NVIDIA has many excellent development tools. Why the need for another
+tool? NVIDIA's tools such as \texttt{cuda-memcheck} and \texttt{nvvp}
+provide excellent, but \emph{fixed-function} inspection of programs.
+Tools like \texttt{cuda-memcheck} perform binary patching to insert
+instrumentation code.  While they are great at what they are designed
+for, the user has to choose from a fixed menu of program
+characteristics to measure.  If you want to measure some aspect of
+program execution outside the purview of those tools you are out of
+luck.  One example that we provide in this guide --- in
+Section~\ref{sec:example3} --- is a perfect example of something
+that SASSI is good at, that NVIDIA's production tools currently cannot
+handle.
+
+SASSI is invoked extremely late in the compiler's flow to minimize any
+disruption the instrumentation code has on the code the user wants to
+measure. Because SASSI is part of the compiler, it is important for us
+to clearly state up front that SASSI is not a \emph{binary
+  instrumenter}. SASSI instrumentation of programs requires the source
+code (either CUDA, OpenCL, or PTX). As a consequence, any device
+libraries (e.g., \texttt{cuFFT}) that your application links in will
+not be instrumented unless the user has explicitly recompiled the
+library with SASSI. We also note here that SASSI is a fork of the
+production backend compiler, and therefore, the code it instruments
+may deviate from that of the official \texttt{ptxas}. 
+
+As a small research effort however, working within the backend
+compiler affords us stability and portability.  NVIDIA's architectures
+change dramatically from generation to generation, yet because SASSI
+is part of the compiler flow, it can target Fermi, Kepler, and Maxwell
+devices, and it runs on Windows and Linux.  \hl{NVIDIA Research is
+  releasing SASSI ``as-is'', and users should realize that it is a
+  \emph{research prototype} with no promise of support or continuity.}

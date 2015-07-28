@@ -1,6 +1,9 @@
 Copyright (c) 2015, NVIDIA open source projects
 All rights reserved.
 
+This license covers the instrumentation libraries that we include in the
+SASSI project.
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 

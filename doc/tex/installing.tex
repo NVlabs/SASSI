@@ -1,0 +1,183 @@
+\section{Prerequisites, Getting, and Installing SASSI}
+
+SASSI is, in a nutshell, a specialized version of \texttt{ptxas}
+that has a few extra options for instrumenting applications.  That
+said, to make SASSI usable, the SASSI distribution also comes with a
+set of header files that describe the data structures that SASSI
+injects; and it comes with a few sample instrumentation libraries and
+utilities that we have found to be useful.
+
+Throughout the rest of the guide, we will define the following
+environment variables:
+\begin{itemize}
+\item \texttt{\$SASSI\_REPO}: The base directory of the SASSI project,
+  which you will clone from GitHub.
+\item \texttt{\$CUDA\_HOME}: The location of your CUDA 7 installation
+  (which is a prerequisite for installing SASSI).
+\item \texttt{\$SASSI\_HOME}: The location of your SASSI installation,
+  which is essentially a deep copy of your CUDA 7 installation, with a
+  few added files and a different version of \texttt{ptxas}.
+\end{itemize}
+
+\subsection{Prerequisites} 
+
+First, let's walk through SASSI's prerequisites.
+
+\begin{enumerate}
+\item {\bf Platform requirements}: SASSI requires an X86 64-bit host;
+  a Fermi-, Kepler-, or Maxwell-based GPU; and at the time of this
+  writing we have generated SASSI for Ubuntu (12, 14, and 15), Debian
+  7, and CentOS 6.\footnote{Please let us know if your platform
+    is not listed, and we'll see what we can do.}
+\item {\bf Install CUDA 7}: At the time of this writing, CUDA 7 can
+  be fetched
+  from:\\ \\  \texttt{https://developer.nvidia.com/cuda-downloads} \\
+\item {\bf Make sure you have a 346.41 driver or newer:} The CUDA 7
+  installation script can install a new driver for you that meets this
+  requirement.  If you already have a newer driver, that should be
+  fine.  You can test your driver version with the \texttt{nvidia-smi}
+  command.
+\item {\bf Get SASSI}: You can get the SASSI project from GitHub via the following
+  command: \\ \\ \texttt{git clone https://github.com/NVlabs/SASSI} \\
+
+  The project that you get will be your \texttt{\$SASSI\_REPO}.
+\item {\bf Compilers [Optional]}: To use the instrumentation libraries
+  we provide, you will need a C++-11 compiler.  We have been using GCC
+  4.8.2.  For details about the host compiler that you can use on your
+  platform for CUDA 7, consult the following
+  guide:\\ \\ \texttt{http://docs.nvidia.com/cuda/cuda-getting-started-guide-for-linux/}
+\end{enumerate}
+
+\subsection{SASSI Project Structure}
+
+The SASSI project that is hosted on GitHub has the directory structure
+show in Figure~\ref{fig:structure}.  The \texttt{doc} directory
+contains this document and an ISCA paper that describes SASSI's inner
+workings.
+
+The \texttt{example} directory contains a \texttt{Makefile} and a
+single application from the CUDA SDK, which this guide uses for the
+examples in Sections~\ref{sec:example1}-\ref{sec:example4}.
+
+The \texttt{instlibs} directory contains sample SASSI instrumentation
+libraries that range in complexity from very simple to fairly complex.
+There are examples that profile branch behavior, memory behavior, and
+operand value behavior.  In addition, there are a couple of
+pedagogical examples that demonstrate SASSI's API.  We will continue
+to add instrumentation libraries to this directory over time.  The
+\texttt{instlibs/utils} directory contains a templatized device-side
+hash map to facilitate bookkeeping.
+
+Finally, the \texttt{tool} directory contains several binary
+installers for different platforms.  The core of SASSI (i.e., SASSI's
+version of \texttt{ptxas}) is closed-source.  The binary installer
+simply unpacks SASSI's header files and \texttt{ptxas} and copies them
+to the user's desired installation directory.
+
+\begin{figure*}
+\center
+\begin{verbatim}
+$SASSI_REPO
+  | EULA
+  | FAQ
+  | README
+  | doc
+    | sassi-user-guide.pdf
+    | sassi-isca-2015.pdf
+  | example
+    | Makefile
+    | matrixMul.cu 
+  | instlibs
+    | env.mk
+    | LICENSE
+    | Makefile
+    | src
+       | branch.cu
+       | memdiverge.cu
+       | ...
+    | utils
+       | sassi-dictionary.hpp
+       | ...
+  | tool
+    | SASSI_x86_64_centos_6.run
+    | SASSI_x86_64_debian_wheezy.run
+    | ...
+\end{verbatim}
+\caption{The directory structure of the SASSI project.}
+\label{fig:structure}
+\end{figure*}
+
+\subsection{Installation}
+
+To install SASSI, navigate to the \texttt{tool} directory, choose the
+correct installer for your platform, and execute it.  For example to
+install SASSI on an Ubuntu 15 x86-64 host,
+
+\begin{lstlisting}[style=BashInputStyle]
+cd $SASSI_REPO/tool
+./SASSI_x86_64_ubuntu_vivid
+\end{lstlisting}
+
+The installation script performs the following very simple tasks:
+\begin{enumerate}
+\item {\bf Has the end user agree to the End User License Agreement:}
+  The license agreement is exactly the same as the EULA for the CUDA
+  7 toolkit.
+\item {\bf Asks the user for the location of the CUDA 7 toolkit:}
+  This guide refers to this location as \texttt{\$CUDA\_HOME}.
+\item {\bf Asks the user where it should install SASSI}: Note, this
+  directory should be different from your CUDA 7 location.  Also note,
+  you may need to run the script as root if you're planning on
+  installing SASSI in the default location of
+  \texttt{/usr/local/sassi}.  This guide refers to this location as
+  \texttt{\$SASSI\_HOME}. 
+\item {\bf Copies the whole CUDA 7 directory to the SASSI install
+  location:} This step can take a while depending on the details of
+  your host and filesystem.
+\item {\bf Copies the SASSI header files to the SASSI install
+  location.}  The header files are the best documentation for SASSI's
+  interface, so you should know that they are installed in
+  \lstinline[style=BashInputStyle]´$SASSI_HOME/include/sassi/´
+\item {\bf Copies SASSI's \texttt{ptxas} to the SASSI install
+  location.}  More specifically, SASSI's \texttt{ptxas} is moved to
+  \lstinline[style=BashInputStyle]´$SASSI_HOME/bin/´
+\end{enumerate}
+
+Before going any further, you should make sure that the installation
+script succesfully installed SASSI.  If there were no warnings,
+errors, or abort messages, it probably worked.  Nevertheless, let's
+check.  First, we'll make sure that the header files were installed in
+the right place:
+\begin{lstlisting}[style=BashInputStyle]
+ls -l $SASSI_HOME/include/sassi
+total 64 
+-rw-r--r-- 1 mstephenson mstephenson  4759 Jul 17 08:05 sassi-branch.hpp
+-rw-r--r-- 1 mstephenson mstephenson 11402 Jul 17 08:05 sassi-core.hpp
+-rw-r--r-- 1 mstephenson mstephenson  2818 Jul 17 08:05 sassi.hpp
+-rw-r--r-- 1 mstephenson mstephenson  3396 Jul 17 08:05 sassi-ins-properties.h
+-rw-r--r-- 1 mstephenson mstephenson  3994 Jul 17 08:05 sassi-kernel.hpp
+-rw-r--r-- 1 mstephenson mstephenson  4090 Jul 17 08:05 sassi-memory.hpp
+-rw-r--r-- 1 mstephenson mstephenson  6499 Jul 17 08:05 sassi-opcodes.h
+-rw-r--r-- 1 mstephenson mstephenson 10999 Jul 17 08:05 sassi-regs.hpp
+-rw-r--r-- 1 mstephenson mstephenson  3636 Jul 17 08:05 sassi-types.h
+\end{lstlisting}
+
+Now we can check to see if the SASSI-enabled \texttt{ptxas} was
+installed.  All SASSI instrumentation is turned off by default, so
+without providing any SASSI-specific options, SASSI's \texttt{ptxas}
+will behave like \texttt{ptxas} from your CUDA 7 installation.
+Issuing \texttt{ptxas -h} will print out all options available,
+including the optional arguments for instrumenting with SASSI.  Let's
+see if the SASSI options are available:
+\begin{lstlisting}[style=BashInputStyle]
+$SASSI_HOME/bin/ptxas -h | grep sassi
+--sassi-after-args <comma separated list of additional information> (-sassi-after-args)
+--sassi-before-args <comma separated list of additional information> (-sassi-before-args)
+--sassi-debug                                                        (-sassi-debug)
+...
+\end{lstlisting}
+
+{\bf{Note:} If at any point you upgrade or patch your version of CUDA 7, you
+  should re-run the installation script.}  The SASSI installation
+script simply performs a deep copy of the CUDA 7 installation.
+

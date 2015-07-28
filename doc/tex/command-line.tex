@@ -1,0 +1,86 @@
+\pagebreak
+\section{Other command-line arguments for instrumentation}
+\label{sec:command-line-args}
+
+This section describes a few additional flags that guide how
+instrumentation is performed. 
+
+\subsection{--sassi-debug}
+
+This flag performs two functions.  First, it inserts canary
+values on the stack before calling a handler function, then upon
+return, it performs a check to make sure the canary values are
+intact.  If the canary values differ from expectation, the check
+traps.  This option is meant as a sanity check to help guard against
+unknown stack corruption. (Because SASSI manipulates the
+stack.) 
+
+This flag can also be used to selectively disable some instrumentation
+points.  When you assemble a PTX file with this option enabled, SASSI
+will dump the SASS that was generated to file named
+\texttt{sassi-instrumented-<PID>.txt}, and it will show you where the
+instrumentation was inserted.  For example, look at this snippet from
+the example code, with the branch example
+(Section~\ref{sec:example2}):
+\begin{verbatim}
+      .
+      .
+      .
+# BAR
+# ==== BASIC BLOCK HEADER ====
+# IADD
+# IADD
+# ISETP
++_Z13matrixMulCUDAILi16EEvPfS0_S0_ii, 111, _Z20sassi_before_handlerP17SASSIBeforeParams...
+# BRA
+# ==== BASIC BLOCK HEADER ====
+# SYNC
+      .
+      .
+      .
+\end{verbatim}
+The dump shows the instructions that were processed by SASSI,
+including the ones around which SASSI added instrumentation.  The
+lines that begin with ``+'', show where instrumentation was inserted.
+The tuple on each ``+'' line shows the kernel, the unique function ID
+of the instrumented instruction, and the handler that was called for
+each instrumentation site.  So, the first ``+'' line shows that a call
+to \texttt{sassi\_before\_handler} was inserted before the \texttt{BRA}
+instruction.
+
+If you take this output and put it in a file called
+\texttt{sassi-skips.txt}, you can selectively disable instrumentation
+for certain points by changing the ``+'' to a ``-''.  This selective
+skipping of instrumentation points is only enabled in
+\texttt{--sassi-debug} mode.  This simple interface has allowed us to
+binary search for problems with SASSI's code generation.  But users
+may find it useful, though tedious, for finer-grained control over
+instrumentation sites.
+
+\subsection{--sassi-inst-inline}
+
+By default SASSI adds instrumentation via a code trampoline, which
+better preserves the original code layout, i.e., the offset of each
+instruction from the beginning of the function/kernel.  More
+specifically, SASSI replaces the instrumented instruction with jump to
+an instrumentation trampoline, which performs the instrumentation,
+executes the instruction, and if necessary, branches back to the next
+instruction to be executed. By setting this option to true, SASSI will
+instead forgo a code trampoline, and inject the instrumentation
+directly inline.
+
+\subsection{--sassi-iff-true-predicate-handler-call}
+
+NVIDIA GPUs support predication.  Most instructions can have a
+boolean source argument that dictates whether or not that instruction
+will actually execute.  If this predicate operand is false, should the
+instrumentation handler be called?  By default, the handler is always
+called, regardless of the predicate's value.  For ``before''
+instrumentation, the handler can determine whether or not the
+instruction \emph{will execute}; in the case of ``after''
+instrumentation, the instrumentation handler can inspect the value of
+the guarding predicate.
+
+With this flag enabled, the handler will be called if and only
+if the instruction is actually executed.
+

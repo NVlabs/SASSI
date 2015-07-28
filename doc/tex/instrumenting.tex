@@ -1,0 +1,285 @@
+\section{Instrumenting an application}
+
+This section describes how to instrument an application.  The
+high-level instrumentation flow is the same as the standard
+compilation flow shown in Figure~\ref{fig:sassi-comp-flow}.  We use a
+SASSI-modified version \texttt{ptxas} to instrument all of the modules
+in the GPGPU application.  In addition, we define \emph{what}
+instrumentation we are going to perform in a separate CUDA library,
+compile it separately, and link it in with the other modules in the
+program.  There are some important requirements we impose on both the
+instrumented code and instrumentation libraries.  We describe these
+requirements in Section~\ref{sec:important-required}.
+
+A SASSI-modified version of \texttt{ptxas} accepts a few optional
+arguments not present in the default \texttt{ptxas}.  All
+instrumentation intent is conveyed to SASSI via command-line arguments
+to \texttt{ptxas}.  Section~\ref{sec:command-line-args} lists all of
+the available command-line options for SASSI.  Note that SASSI's user
+interface is currently simple, can be limiting, and is subject to
+change. In general, SASSI requires two pieces of information to
+instrument an application.  First, we need to tell SASSI \emph{where}
+it should insert instrumentation; and second, we need to tell SASSI
+\emph{what} information it should extract for each instrumentation
+site.
+
+\subsection{Instrumentation sites (the \emph{where})}
+
+We will first describe the knobs that SASSI exposes to convey
+\emph{where} it should insert instrumentation.  SASSI has a few flags
+for guiding instrumentation sites, but the two most common are:\\
+\begin{center}
+\texttt{--sassi-inst-before=}``$\langle$ list of instruction
+\emph{classes} from Table~\ref{tab:inst-before}$\rangle$'' \\
+
+\texttt{--sassi-inst-after=}``$\langle$ list of instruction
+\emph{classes} from Table~\ref{tab:inst-after}$\rangle$'' \\
+\end{center}
+
+As the name implies \texttt{--sassi-inst-before} inserts
+instrumentation code before certain instructions, and
+\texttt{--sassi-inst-after} inserts code after instructions.  The two
+flags take a comma-separated list of instrumentation sites.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+Flag & Description \\
+\hline
+all & Inserts instrumentation before \emph{all} instructions. \\
+calls & Inserts instrumentation before function calls. \\
+cond-branches & Inserts instrumentation before conditional branches. \\
+memory & Inserts instrumentation before memory operations.  SASSI does {\bf not} consider ``load constant''' to be memory operations. \\
+reg-reads & Inserts instrumentation before instructions that read
+registers. \\
+reg-writes & Inserts instrumentation before instructions that write
+registers. \\
+\hline
+\end{tabular}
+\caption{Possible instrumentation sites for \texttt{--sassi-inst-before}.}
+\label{tab:inst-before}
+\end{table}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+Flag & Description \\
+\hline
+calls & Inserts instrumentation after function calls. \\
+memory & Inserts instrumentation after memory operations. SASSI does {\bf not} consider ``load constant''' to be memory operations. \\
+reg-writes & Inserts instrumentation after instructions that write
+registers. \\
+\hline
+\end{tabular}
+\caption{Possible instrumentation sites for \texttt{--sassi-inst-after}.}
+\label{tab:inst-after}
+\end{table}
+
+In addition to the \texttt{--sassi-inst-before/after} flags, we can
+have SASSI insert instrumentation at kernel entry points with the
+flag,\texttt{--sassi-kernel-entry}.  There are a couple of other
+instrumentation points that we will expose shortly in a future release.
+
+As an example, consider the case where we want to insert
+instrumentation before instructions that touch memory \emph{or}
+instructions that write any registers, we would provide \texttt{ptxas}
+the argument,\\ 
+\begin{center}
+\texttt{--sassi-inst-before=}``\texttt{memory,reg-writes}''.
+\end{center}
+
+If you pass \texttt{--sassi-inst-before} or
+\texttt{--sassi-inst-after} invalid arguments, SASSI will abort the
+compilation with an error.  The \texttt{--sassi-inst-after} option
+does not allow for instrumentation after any class of instructions
+that includes branches.  This simplifies code generation and user
+expectations.  Note, as Section~\ref{sec:example2} shows, it is still
+possible to determine where a branch \emph{will} go using SASSI.
+
+Let's compile an application and instruct SASSI to inject
+instrumentation before all memory operations:
+
+\begin{lstlisting}[style=BashInputStyle]
+nvcc gaussian.cu -gencode arch=compute_50,code=sm_50 \
+  -Xptxas --sassi-inst-before=''memory'' -O3  -c -rdc=true -o gaussian.o  -std=c++11
+\end{lstlisting}
+
+With this command, SASSI will spit out the following message:
+\begin{verbatim}
+******************************************************************************
+*
+*                       SASSI Instrumentation Details
+*
+*  For the settings you passed in, you'll need to make sure that you have
+*  an instrumentation library with the following properties:
+*  - It MUST BE compiled using only 16 registers!! To accomplish this
+*    simply compile your library with the nvcc flag, --maxrregcount=16
+*  - It must define the following functions:
+*      __device__ void sassi_before_handler(SASSIBeforeParams*)
+*
+******************************************************************************
+\end{verbatim}
+
+This message is a good segue to the next topic--- \emph{what}
+instrumentation gets inserted.
+
+\subsection{Instrumentation arguments (the \emph{what})}
+
+The instrumentation that SASSI injects is essentially a function call
+to a CUDA function that the user separately defines.  So the SASSI
+commands we used last will insert a call to the following function
+before every memory operation:
+\begin{center}
+\begin{lstlisting}
+__device__ void sassi_before_handler(SASSIBeforeParams*);
+\end{lstlisting}
+\end{center}
+
+You can, with a couple of minor limitations that we discuss in
+Section~\ref{sec:what-can-go},  
+put whatever CUDA computation you want in
+\texttt{sassi\_before\_handler}, and it will execute before every
+memory operation executes.
+
+SASSI assumes the user wants access to
+\emph{baseline} information about each instrumented instruction, so it
+bundles up basic information about the instrumented instruction,
+places it in a C++ object of type \texttt{SASSIBeforeParams}, and
+passes along a pointer to the object as an argument to the handler.
+The argument type is shown in Figure~\ref{fig:before-args}.  It allows
+us to test whether the instruction will execute (which it might not
+because NVIDIA's architectures feature predicated execution), get its
+opcode, get its virtual PC, etc.
+
+\begin{figure*}
+\center
+\begin{lstlisting}
+class SASSIBeforeParams : public SASSICoreParams {
+public:
+  ///////////////////////////////////////////////////////////////////////////////
+  // Returns true if the instruction will execute.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ bool GetInstrWillExecute() const;
+
+ //////////////////////////////////////////////////////////////////////////////
+  // Gets the opcode of the instruction.
+  //////////////////////////////////////////////////////////////////////////////
+  __device__ SASSIInstrOpcodes GetOpcode() const;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Returns the offset of the instruction from the function's entry.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ uint32_t GetInsOffset() const;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Returns the name of the kernel/function that contains this instruction.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ const char *GetFnName() const;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Gets a probably unique virtual PC, which is repeatable between runs.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ uint64_t GetPUPC() const;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Returns the SHA1 hash of the function name.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ const uint32_t *GetFnNameSHA1() const;
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // Various ways to query whether the instruction is a memory operation.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ bool IsMem() const;
+  __device__ bool IsMemRead() const;
+  __device__ bool IsMemWrite() const;
+  __device__ bool IsSpillOrFill() const;
+  __device__ bool IsSurfaceMemory() const;
+
+  ///////////////////////////////////////////////////////////////////////////////
+  // Returns true if the instruction type is a control transfer operation.
+  ///////////////////////////////////////////////////////////////////////////////
+  __device__ bool IsControlXfer() const;
+  __device__ bool IsConditionalControlXfer() const;
+
+  // Other methods follow...
+};
+\end{lstlisting}
+\caption{The baseline parameter that's passed in to an instrumentation
+  handler allows the instrumentation handler to query the above methods.} 
+\label{fig:before-args}
+\end{figure*}
+
+While we can query basic characteristics with
+\texttt{SASSIBeforeParams} objects, this information is clearly
+insufficient for many studies. We can optionally specify 
+additional information to extract for each instruction.  
+ If the user has specified that instrumentation should be inserted
+before some set of instructions (using the
+\texttt{--sassi-inst-before} flag), then we can optionally
+specify additional arguments to send to the handler by using the
+\texttt{--sassi-before-args} flag.  This flag also takes a
+comma-separated list of values.  Currently, allowed values for
+\texttt{--sassi-before-args} are `cond-branch-info', `mem-info',
+and `reg-info'.  Table~\ref{tab:before-args} summarizes the
+functions of these values.  Similarly, Table~\ref{tab:after-args}
+summarizes the allowable options for ``after'' instrumentation.
+
+\begin{table}
+\center
+\begin{tabular}{|l|L{3.4in}|}
+\hline Flag & Description \\ \hline cond-branch-info & Extracts
+information about conditional branches and passes it to the
+instrumentation handler.  \emph{For instrumentation sites that do not
+  correspond to a conditional branch instruction, the instrumentation
+  handler will be passed a NULL pointer}. See
+\texttt{\$SASSI\_HOME/include/sassi/sassi-branch.hpp} for a description
+of the object type passed to the handler. \\ \hline mem-info &
+Extracts information about memory operations and passes it to the
+instrumentation handler.  \emph{For instrumentation sites that do not
+  correspond to memory instructions, the instrumentation handler will
+  be passed a NULL pointer}.  See
+\texttt{\$SASSI\_HOME/include/sassi/sassi-memory.hpp} for a description
+of the object type passed to the handler. \\ \hline reg-info &
+Extracts information about the instruction's register usage.  The
+pointer passed to the instrumentation handler should \emph{always}
+point to a valid structure.  See
+\texttt{\$SASSI\_HOME/include/sassi/sassi-regs.hpp} for a description of
+the object type passed to the handler. \\ \hline
+\end{tabular}
+\caption{If the \texttt{--sassi-inst-before} flag is used, the
+  user may also consider specifying additional information, using the
+  \texttt{--sassi-before-args} flag, about the instrumentation site
+  that will be passed to the handler.}
+\label{tab:before-args}
+\end{table}
+
+\begin{table}
+\center
+\begin{tabular}{|l|L{3.4in}|}
+\hline Flag & Description \\ \hline 
+mem-info &
+Extracts information about memory operations and passes it to the
+instrumentation handler.  \emph{For instrumentation sites that do not
+  correspond to memory instructions, the instrumentation handler will
+  be passed a NULL pointer}.  See
+\texttt{\$SASSI\_HOME/include/sassi/sassi-memory.hpp} for a description
+of the object type passed to the handler. \\ \hline reg-info &
+Extracts information about the instruction's register usage.  The
+pointer passed to the instrumentation handler should \emph{always}
+point to a valid structure.  See
+\texttt{\$SASSI\_HOME/include/sassi/sassi-regs.hpp} for a description of
+the object type passed to the handler. \\ \hline
+\end{tabular}
+\caption{If the \texttt{--sassi-inst-after} flag is used, the
+  user may also consider specifying additional information, using the
+  \texttt{--sassi-after-args} flag, about the instrumentation site
+  that will be passed to the handler.}
+\label{tab:after-args}
+\end{table}
+
+When you specify additional arguments to be passed, SASSI will tell
+you the order it in which it will pass the arguments to the handler.
+It is important that you link in a handler that matches the type
+signature SASSI demands, or your link step will fail.

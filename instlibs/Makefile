@@ -1,0 +1,18 @@
+
+# Setup your variables in env.mk before building!
+include env.mk
+
+export PATH:=$(PATH):$(CUDA_HOME)/bin/
+export INSTALL_DIR := $(PWD)
+
+all: instlibs
+
+instlibs: lib
+	make -C src install
+
+lib:
+	mkdir lib
+
+clean:
+	make -C src clean
+	$(RM) -r lib

@@ -1,0 +1,23 @@
+\section{What can go in an instrumentation handler?}
+\label{sec:what-can-go}
+
+Not all CUDA is legal within SASSI instrumentation handlers.  For example,
+thread barriers (\texttt{syncthreads}) cannot be used because the
+instrumentation function may be called when the threads in a warp are
+diverged; {\tt syncthreads} executed by diverged warps precludes all
+threads from reaching the common barrier.  Finally, SASSI
+instrumentation libraries that use shared resources, such as stack, shared
+and constant memory, not only risk affecting occupancy, but they could
+also cause instrumented programs to fail. For instance, it is not
+uncommon for programs to use \emph{all} of shared memory, leaving
+nothing for the instrumentation library. In practice, we have not been
+limited by these restrictions.
+
+We should also point out that designing instrumentation handlers for
+SASSI requires the user to carefully consider synchronization and data
+sharing. Writing parallel programs is tricky business, and SASSI
+instrumentation code is highly parallel by design.
+
+
+
+

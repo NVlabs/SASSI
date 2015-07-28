@@ -1,0 +1,31 @@
+
+1. Why can't I get the source code for SASSI?
+
+   SASSI is cooked into the production backend compiler, which is not
+   open source, and probably never will be.  If you really want to see
+   the code, please come work for NVIDIA.
+
+2. Why is my instrumented program generating "illegal memory access"
+   errors?
+
+   We have seen this for a number of reasons, including:
+
+   1. Your driver version is not at least 346.41.  You can test your
+      driver version with the "nvidia-smi" command.
+
+   2. You built your instrumentation libraries on one platform, but
+      are trying to link them in on another platform.  I have
+      encountered this when I built my libraries an old version of
+      CentOS, but accidentally linked them in on a newer Debian
+      platform.
+
+   3. You're using an old version of CUPTI.  If you're going to use
+      CUPTI, you should use the CUDA 7 version.
+
+3. Why doesn't the SASSI version of ptxas generate exactly the same
+   code as the version distributed in the official toolkit?
+
+   The backend compiler in which SASSI is embedded is based on a fork
+   of the production compiler, and thus in some cases, code generation
+   may differ from that of the official ptxas.  But in all cases, the
+   performance of the generated code should be highly competitive.

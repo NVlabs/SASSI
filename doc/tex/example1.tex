@@ -1,0 +1,226 @@
+\section{Example 1: Creating a histogram of opcodes}
+\label{sec:example1}
+
+This simple example creates a histogram of the opcodes that are
+encountered during the execution of a program.  As we have already
+mentioned, the compiler flow for SASSI instrumentation involves
+1) compiling the application to enable callbacks to instrumentation
+handlers to be inserted, and 2) defining the instrumentation handler,
+compiling it, and linking it in with the application. 
+
+Before looking at these two steps in detail, let's just build and run
+the example.  If you have not done so, please setup your environment
+per the instructions in Section~\ref{sec:environment}.  Now, do:
+\begin{lstlisting}[style=BashInputStyle]
+# Go to the example directory.
+cd $SASSI_REPO/example
+make clean
+# Instrument the application and link with the instrumentation library.
+make ophist
+# Run the example. (Alternatively, type 'make run')
+./matrixMul
+\end{lstlisting}
+
+This can take several seconds to minutes depending on the horsepower
+of your GPU. If all went well, you should now have a file in that
+directory, called \texttt{sassi-ophist.txt}, that contains a histogram
+of the encountered opcodes.
+
+\subsection{How to compile your application}
+
+Now let's take a look at how the makefile builds the
+\texttt{matrixMul} application.  For this example, we want to track
+all instructions that execute, so we'll need to tell SASSI to add
+instrumentation callbacks before \emph{all} instructions:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -I./inc  -c -O3 \
+   -gencode arch=compute_50,code=sm_50 \
+   -Xptxas --sassi-inst-before=''all'' \
+   -dc \
+   -o matrixMul.o matrixMul.cu
+\end{lstlisting}
+
+Lines (1) and (5) are the options that you would ordinarily compiler
+your CUDA application with.  Line (2) is required because we need the
+compiler to generate \emph{actual} not virtual code.  In this case, we
+are targetting a first-generation Maxwell card, with \texttt{sm\_50}.
+Line (3) instructs SASSI to inject instrumentation before all SASS
+instructions, and line (4) is required because we are going to link in
+the instrumentation handler momentarily, and cross-module calls
+require ``relocatable device code.''  In fact, let's look at the
+message that SASSI spits out:
+\begin{verbatim}
+******************************************************************************
+*
+*                       SASSI Instrumentation Details
+*
+*  For the settings you passed in, you'll need to make sure that you have
+*  an instrumentation library with the following properties:
+*  - It MUST BE compiled using only 16 registers!! To accomplish this
+*    simply compile your library with the nvcc flag, --maxrregcount=16
+*  - It must define the following functions:
+*      __device__ void sassi_before_handler(SASSIBeforeParams*)
+*
+******************************************************************************
+\end{verbatim}
+
+This tells us that we have to define and link in a function with the
+signature,\\ 
+\lstinline{__device__ void sassi_before_handler(SASSIBeforeParams*)},
+which we have defined in a library called 
+\texttt{libophist.a}.  Don't worry, we'll eventually show you what's in the
+instrumentation library, and how we build it, but for now, let's just
+link it in:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -o matrixMul matrixMul.o \
+  -gencode arch=compute_50,code=sm_50 \
+  -lcudadevrt \
+  -L/usr/local/sassi7/extras/CUPTI/lib64 -lcupti \
+  -L../instlibs/lib -lophist
+\end{lstlisting}
+
+This example uses \texttt{nvcc} to link the instrumented application
+with the instrumentation handler and CUPTI. The instrumentation
+library, as we'll see soon, uses CUPTI to
+initialize on-device counters and copy them off the device before it
+is reset. Line (2) again specifies the NVIDIA architecture that we are
+targetting.  Lines (3-5) link in the various required libraries for
+this application.  Of note, line (4) links in CUPTI, and line (5)
+links in the instrumentation library, \texttt{ophist}.
+
+It is a good idea to use \texttt{cuobjdump} to dump the code that
+generated, and make sure that your application was instrumented:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi/bin/cuobjdump -sass matrixMul
+\end{lstlisting}
+
+You should see \emph{a lot} of code bloat!  Each original instruction
+should be supplanted with a branch to an instrumentation trampoline.
+
+\subsection{Writing the instrumentation library}
+
+The instrumentation library that corresponds to this example is fully
+implemented in \\
+\texttt{\$SASSI\_REPO/instlibs/src/ophist.cu}.  The library code is shown in
+Figure~\ref{fig:handler-example1}.
+
+\begin{figure*}[h!]
+\begin{lstlisting}
+#include <cupti.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
+#include "sassi_intrinsics.h"
+#include "sassi_lazyallocator.hpp"
+#include <sassi/sassi-core.hpp>
+
+// Keep track of all the opcodes that were executed.
+__managed__ unsigned long long dynamic_instr_counts[SASSI_NUM_OPCODES];
+
+///////////////////////////////////////////////////////////////////////////////////
+///  This is a SASSI handler that handles only basic information about each
+///  instrumented instruction.  The calls to this handler are placed by
+///  convention *before* each instrumented instruction.
+///////////////////////////////////////////////////////////////////////////////////
+__device__ void sassi_before_handler(SASSIBeforeParams* bp)
+{
+    if (bp->GetInstrWillExecute())
+    {
+      SASSIInstrOpcode op = bp->GetOpcode();
+      atomicAdd(&(dynamic_instr_counts[op]), 1ULL);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+///  Write out the statistics we've gathered.
+///////////////////////////////////////////////////////////////////////////////////
+static void sassi_finalize()
+{
+  cudaDeviceSynchronize();
+
+  FILE *resultFile = fopen("sassi-ophist.txt", "w");
+  for (unsigned i = 0; i < SASSI_NUM_OPCODES; i++) {
+    if (dynamic_instr_counts[i] > 0) {
+      fprintf(resultFile, "%-10.10s: %llu\n", SASSIInstrOpcodeStrings[i], dynamic_instr_counts[i]);
+    }
+  }
+  fclose(resultFile);
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+///  Lazily initialize the counters before the first kernel launch. 
+///////////////////////////////////////////////////////////////////////////////////
+static sassi::lazy_allocator counterInitializer(
+  /* Initialize the counters. */
+  []() {
+    bzero(dynamic_instr_counts, sizeof(dynamic_instr_counts));
+  }, sassi_finalize);
+\end{lstlisting}
+\caption{Instrumentation library for creating a histogram of opcodes.}
+\label{fig:handler-example1}
+\end{figure*}
+
+Notice, the handler, \texttt{sassi\_before\_handler} is a
+\texttt{\_\_device\_\_} function, which means it will run on the GPU.
+As you've seen, with the right instrumentation flags, we can get SASSI
+to inject calls to this function before every instruction.
+
+This example is extremely simple, and only requires the basic
+information SASSI extracts about each instruction, which is passed in
+as an argument of type \texttt{SASSIBeforeParams*}.  The handler first checks whether
+the instruction will execute with the \texttt{GetInstrWillExecute()}
+method.  Note this is because an instruction might have a guarding
+predicate that is \texttt{false} for this invocation of the handler.
+
+If the instruction will execute, the handler simply gets the
+instruction's opcode with \texttt{GetOpcode()} and then uses CUDA's
+\texttt{atomicAdd} function to increment the opcode's associated
+counter.
+
+Even though there is a performance penalty (which our instrumentation
+overheads dwarf) for using Unified Virtual Memory, we find that UVM is
+quite convenient for writing instrumentation handlers.  For this
+example, \texttt{dynamic\_instr\_counts[]} is declared as a
+\texttt{\_\_managed\_\_} type, which means that we can access it on
+the host \emph{and} the device.
+
+In \texttt{\$SASSI\_REPO/instlibs/utils} there is a convenience class,
+\lstinline{sassi::lazy_allocator}, that allows us to initialize
+variables before the first kernel launch, and be notified before the
+program exits or the device is reset (so we can dump counters to a
+file, for instance).  This class relies on CUPTI to respond to these
+events.
+
+\subsubsection{Building the handler as a library}
+
+The makefile in \texttt{\$SASSI\_REPO/instlibs/src} shows the standard
+way to build a library with the NVIDIA CUDA toolchain. The only way to
+instrument with SASSI involves creating a standalone library, or even
+an object file, and later linking it in with your SASSI-compiled
+application.
+
+Let's take a look at what the makfile does for the \texttt{ophist}
+library:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/cuda-7.0/bin/nvcc \
+  -ccbin /usr/local/gcc-4.8.4/bin/ -std=c++11 \
+  -O3 \
+  -gencode arch=compute_50,code=sm_50 \
+  -c -rdc=true -o ophist.o \
+  ophist.cu \
+  --maxrregcount=16 \
+  -I/usr/local/sassi7/include \
+  -I/usr/local/sassi7/extras/CUPTI/include/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/utils/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/include
+ar r /home/mstephenson/Projects/sassi/instlibs/lib/libophist.a ophist.o
+ranlib /home/mstephenson/Projects/sassi/instlibs/lib/libophist.a
+\end{lstlisting}
+
+The instrumentation libraries in the instlibs rely on C++-11 support,
+hence line (2).  We also build the instrumentation library to support
+the architecture we plan to run on in (4).  Change this to match your
+architecture.  Finally, of supreme importance, we instruction NVCC to
+use only 16 registers for the handler in (7).  We include
+\emph{include} paths in (8)-(11).  Finally, lines (12) and (13) bundle
+the single object file into a library.

@@ -1,0 +1,243 @@
+\pagebreak
+\section{Example 2: Conditional Branch}
+\label{sec:example2}
+
+This example examines the branch behavior of an application. We
+introduce a couple of features not required for the last example.
+First, we need to instruct SASSI to pass an additional argument to our
+instrumentation handler, one that conveys information about the
+behavior of conditional branches; and second, we use a hash map to
+record per-branch statistics.
+
+Before walking through the specifics of the example, let's just build
+and run it. If you have not done so, please setup your environment
+per the instructions in Section~\ref{sec:environment}.  Now, do:
+\begin{lstlisting}[style=BashInputStyle]
+# Go to the example directory.
+cd $SASSI_REPO/example
+make clean
+# Instrument the application and link with the instrumentation library.
+make branch
+# Run the example. (Alternatively, type 'make run')
+./matrixMul
+\end{lstlisting}
+
+This can take some time to finish running.  Assuming everything went
+well, you should now have a file in that directory called
+\texttt{sassi-branch.txt}.  Here are the contents of the file for
+\texttt{sm\_50}:
+\begin{verbatim}
+Address          Total/32   Dvrge/32   Active     Taken      NTaken
+c2375281000000d0 1926400               61644800              61644800
+c237528100000668 19264000              616448000  554803200  61644800
+\end{verbatim}
+For \texttt{sm\_50}, the simple application that we are testing
+this instrumentation library with has only one kernel, which only has
+two \emph{conditional} branches (i.e., the branch direction depends on
+some statically unknown condition).  The file separates out the branch
+statistics per conditional branch.  The columns shown show 1) the number
+of branches encountered per warp; 2) the number of those branches that
+\emph{diverge} (a condition where within a warp, some threads take the
+branch, and others fall through); 3) the total number of active
+threads that executed the branch; 4) the number of active threads that
+take the branch; 5) the number of active threads that fall through;
+6) and the type of the branch.   For complete coverage of this
+example, please see ``Case Study I'' in the accompanying ISCA paper
+in the \texttt{doc} directory.
+
+\subsection{How to compile your application}
+
+Now let's take a look at how the makefile builds the
+\texttt{matrixMul} application for this this example.  For this
+example, we are only interested in conditional branches, so while we
+could still add instrumentation before all instructions, it will be
+more efficient to limit our instrumentation to only conditional branches:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -I./inc  -c -O3 \
+   -gencode arch=compute_50,code=sm_50 \
+   -Xptxas --sassi-inst-before=''cond-branches'' \
+   -Xptxas --sassi-before-args=''cond-branch-info'' \
+   -dc \
+   -o matrixMul.o matrixMul.cu
+\end{lstlisting}
+
+Lines (1) and (6) are the options that you would ordinarily compiler
+your CUDA application with.  Line (2) is required because we need the
+compiler to generate \emph{actual} not virtual code.  In this case, we
+are targetting a first-generation Maxwell card, with \texttt{sm\_50}.
+Line (3) instructs SASSI to inject instrumentation before conditional
+branch SASS instructions only.  The instrumentation library for this
+example needs to know the direction that the conditional branch will
+take (e.g., TAKEN or NOT TAKEN), and this information is available in
+objects of \texttt{SASSICondBranchParams}.  The
+\texttt{cond-branch-info} flag will direct SASSI to pass such objects
+to the instrumentation handler.  This is done in line (4).  Line (5)
+is required because we are going to link in the instrumentation
+handler momentarily, and cross-module calls require ``relocatable
+device code.''  Here is the message that SASSI emits for this example:
+\begin{verbatim}
+******************************************************************************
+*
+*                       SASSI Instrumentation Details
+*
+*  For the settings you passed in, you'll need to make sure that you have
+*  an instrumentation library with the following properties:
+*  - It MUST BE compiled using only 16 registers!! To accomplish this
+*    simply compile your library with the nvcc flag, --maxrregcount=16
+*  - It must define the following functions:
+*      __device__ void sassi_before_handler(SASSIBeforeParams*,SASSICondBranchParams*)
+*
+******************************************************************************
+\end{verbatim}
+
+Notice that SASSI tells us that we have to make sure to link in a
+handler with this signature:
+\begin{lstlisting}
+__device__ void sassi_before_handler(SASSIBeforeParams*,SASSICondBranchParams*);
+\end{lstlisting}
+which we have defined in a library called \texttt{libbranch.a}, which
+we'll describe shortly.  We link this in exactly like we did with the
+last example:
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/sassi7/bin/nvcc -o matrixMul matrixMul.o \
+  -gencode arch=compute_50,code=sm_50 \
+  -lcudadevrt \
+  -L/usr/local/sassi7/extras/CUPTI/lib64 -lcupti \
+  -L../instlibs/lib -lbranch
+\end{lstlisting}
+The only difference is linking in \texttt{libbranch.a} versus
+\texttt{libophist.a}.
+
+\subsection{Writing the instrumentation library}
+
+The instrumentation library that corresponds to this example is fully
+implemented in \\ \texttt{\$SASSI\_REPO/instlibs/src/branch.cu}.  The
+instrumentation handler portion of the library is shown in
+Figure~\ref{fig:handler-example2}.  In the last example, we first
+checked to see if the instruction would execute using
+\texttt{bp->GetInstrWillExecute()}.  We don't do that here, because
+the branch instruction's guarding predicate is often used to determine
+the branch direction.
+
+\begin{figure*}[h!]
+\begin{lstlisting}[numbers=left,numbersep=4pt]
+///////////////////////////////////////////////////////////////////////////////////
+//
+/// This function will be inserted before every conditional branch instruction.
+//
+///////////////////////////////////////////////////////////////////////////////////
+__device__ void sassi_before_handler(SASSIBeforeParams *bp, SASSICondBranchParams *brp) 
+{
+  // Find out thread index within the warp.
+  int threadIdxInWarp = get_laneid();
+
+  // Get masks and counts of 1) active threads in this warp,
+  // 2) threads that take the branch, and
+  // 3) threads that do not take the branch.
+  int active = __ballot(1);
+  bool dir = brp->GetDirection();
+  int taken = __ballot(dir == true);
+  int ntaken = __ballot(dir == false);
+  int numActive = __popc(active);
+  int numTaken = __popc(taken);
+  int numNotTaken = __popc(ntaken);
+  bool divergent = (numTaken != numActive && numNotTaken != numActive);
+
+  // The first active thread in each warp gets to write results.
+  if ((__ffs(active)-1) == threadIdxInWarp) {
+    // Get the address, we'll use it for hashing.
+    uint64_t inst_addr = bp->GetPUPC();
+    
+    // Looks up the counters associated with 'inst_addr', but if no such entry
+    // exits, initialize the counters in the lambda.
+    BranchCounter *stats = (*sassi_stats).getOrInit(inst_addr, [inst_addr,brp](BranchCounter* v) {
+	v->address = inst_addr;
+	v->branchType = brp->GetType();
+	v->taggedUnanimous = brp->IsUnanimous();
+      });
+
+    // Why not sanity check the hash map?
+    assert(stats->address == inst_addr);
+    assert(numTaken + numNotTaken == numActive);
+
+    // Increment the various counters that are associated
+    // with this instruction appropriately.
+    atomicAdd(&(stats->totalBranches), 1ULL);
+    atomicAdd(&(stats->activeThreads), numActive);
+    atomicAdd(&(stats->takenThreads), numTaken);
+    atomicAdd(&(stats->takenNotThreads), numNotTaken);
+    atomicAdd(&(stats->divergentBranches), divergent);
+  }
+}
+\end{lstlisting}
+\caption{Instrumentation handler portion of the conditional branch
+  behavior profiling library.  See the library's source code for the
+  full example.}
+\label{fig:handler-example2}
+\end{figure*}
+
+The handler first determines the thread index within the warp (line
+9), the bitmask of active threads (line 14), and the direction in
+which the thread is going to branch (line 15). CUDA provides several
+warp-wide broadcast and reduction operations that NVIDIA's
+architectures efficiently support.  For example, many of the handlers
+we write use the \texttt{\_\_ballot(predicate)} instruction, which
+``evaluates \texttt{predicate} for all active threads of the warp and
+returns an integer whose $N^{th}$ bit is set if and only if
+\texttt{predicate} evaluates to non-zero for the $N^{th}$ thread of
+the warp \emph{and} the $N^{th}$ thread is active.''[CUDA Programming Guide].
+
+The handler also uses \texttt{\_\_ballot} on lines 16 and 17 to set
+masks corresponding to threads that are going to take the branch
+(\texttt{taken}), and the threads that are going to fall through
+(\texttt{ntaken}).  With these masks, the handler uses the
+\emph{population count} instruction (\texttt{\_\_popc}) to efficiently
+determine the number of threads in each respective category
+(\texttt{numActive}, \texttt{numTaken}, \texttt{numNotTaken}).
+
+On line 24 the handler elects the first active thread in the warp
+(using the \emph{find first set} CUDA intrinsic, \texttt{\_\_ffs}) to
+record the results. Because this handler records
+per-branch statistics, it uses a hash table in which to store
+counters. Line 30 finds the hash table entry for the instrumented
+branch (using the templatized hash table in
+\texttt{\$SASSI\_REPO/instlibs/utils}).  Lines 42-46 update the
+counters.
+
+Under the covers, this library relies on the CUPTI library to register
+callbacks for kernel \emph{launch} and \emph{exit} events.  Using
+these callbacks, which run on the host, we can appropriately marshal
+data to initialize and record the values in the device-side hash
+table.  Please see the source code of the instrumentation handler for
+full details of the example.
+
+\subsubsection{Building the handler as a library}
+
+We build the library exactly the way we did for the \texttt{ophist}
+library.
+
+\begin{lstlisting}[style=BashInputStyle]
+/usr/local/cuda-7.0/bin/nvcc \
+  -ccbin /usr/local/gcc-4.8.4/bin/ -std=c++11 \
+  -O3 \
+  -gencode arch=compute_50,code=sm_50 \
+  -c -rdc=true -o branch.o \
+  branch.cu \
+  --maxrregcount=16 \
+  -I/usr/local/sassi7/include \
+  -I/usr/local/sassi7/extras/CUPTI/include/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/utils/ \
+  -I/home/mstephenson/Projects/sassi/instlibs/include
+ar r /home/mstephenson/Projects/sassi/instlibs/lib/libbranch.a branch.o
+ranlib /home/mstephenson/Projects/sassi/instlibs/lib/libbranch.a
+\end{lstlisting}
+
+The instrumentation libraries in the \texttt{instlibs} directory rely on C++-11 support,
+hence line (2).  We also build the instrumentation library to support
+the architecture we plan to run on in (4).  Change this to match your
+architecture.  Finally, of supreme importance, we instruction NVCC to
+use only 16 registers for the handler in (7).  We include
+\emph{include} paths in (8)-(11).  Finally, lines (12) and (13) bundle
+the single object file into a library.
+
+
