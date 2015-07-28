@@ -64,29 +64,29 @@ can find in doc/sassi-user-guide.pdf.
 
 Additionally, "ptxas -h" lists SASSI's supported options.
 
-Restrictions
+Restrictions and caveats
 ------------------
 
 1. 32-bit architectures are not supported.
 
-This was an early design decision to reduce the large cross product of
-possible configurations.  Please let us know if 32-bit support would
-be useful though, because it probably wouldn't be too hard to
-support.
+    This was an early design decision to reduce the large cross product of
+    possible configurations.  Please let us know if 32-bit support would
+    be useful though, because it probably wouldn't be too hard to
+    support.
 
 2. Programs currently have to be compiled with "-rdc=true", which
 affects performance.
 
-SASSI allows users to instrument code by injecting function calls to
-user-defined functions that are later linked in.  In order to perform
-cross-module function calls in CUDA one must use the "relocatable
-device code" option, "-rdc=true".  Future versions of SASSI may remove
-this restriction.
+    SASSI allows users to instrument code by injecting function calls to
+    user-defined functions that are later linked in.  In order to perform
+    cross-module function calls in CUDA one must use the "relocatable
+    device code" option, "-rdc=true".  Future versions of SASSI may remove
+    this restriction.
 
 3. Minimum driver required is 346.41.
 
-This version of SASSI is designed to work with the CUDA 7 toolchain,
-which also has that requirement.
+    This version of SASSI is designed to work with the CUDA 7 toolchain,
+    which also has that requirement.
 
 4. Compiler-inserted MEMBARs and TEXDEPBARs are not accounted for.
 
