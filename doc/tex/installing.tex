@@ -1,13 +1,13 @@
 \section{Prerequisites, Getting, and Installing SASSI}
 
-SASSI is, in a nutshell, a specialized version of \texttt{ptxas}
-that has a few extra options for instrumenting applications.  That
-said, to make SASSI usable, the SASSI distribution also comes with a
-set of header files that describe the data structures that SASSI
-injects; and it comes with a few sample instrumentation libraries and
-utilities that we have found to be useful.
+SASSI is, in a nutshell, a specialized version of \texttt{ptxas} that
+has a few extra options for instrumenting applications.  We distribute
+this specialized \texttt{ptxas} as a (closed-source) binary blob using
+GitHub's ``releases'' functionality.  However, to make SASSI more
+usable, we also distribute several sample instrumentation libraries
+and utilities that we have found to be useful.
 
-Throughout the rest of the guide, we will define the following
+Throughout the rest of the guide, we will refer to the following
 environment variables:
 \begin{itemize}
 \item \texttt{\$SASSI\_REPO}: The base directory of the SASSI project,
@@ -26,7 +26,7 @@ First, let's walk through SASSI's prerequisites.
 \begin{enumerate}
 \item {\bf Platform requirements}: SASSI requires an X86 64-bit host;
   a Fermi-, Kepler-, or Maxwell-based GPU; and at the time of this
-  writing we have generated SASSI for Ubuntu (12, 14, and 15), Debian
+  writing we have generated SASSI for Ubuntu (12 and 15), Debian
   7, and CentOS 6.\footnote{Please let us know if your platform
     is not listed, and we'll see what we can do.}
 \item {\bf Install CUDA 7}: At the time of this writing, CUDA 7 can
@@ -37,10 +37,12 @@ First, let's walk through SASSI's prerequisites.
   requirement.  If you already have a newer driver, that should be
   fine.  You can test your driver version with the \texttt{nvidia-smi}
   command.
-\item {\bf Get SASSI}: You can get the SASSI project from GitHub via the following
-  command: \\ \\ \texttt{git clone https://github.com/NVlabs/SASSI} \\
-
-  The project that you get will be your \texttt{\$SASSI\_REPO}.
+\item {\bf Get the SASSI project}: You can get the SASSI project from
+  GitHub via the following command: \\ \\ \texttt{git clone
+    https://github.com/NVlabs/SASSI} \\
+  The project that you get will be your \texttt{\$SASSI\_REPO}.  The
+  project contains several sample instrumentation libraries,
+  documentation, and useful utilities.
 \item {\bf Compilers [Optional]}: To use the instrumentation libraries
   we provide, you will need a C++-11 compiler.  We have been using GCC
   4.8.2.  For details about the host compiler that you can use on your
@@ -68,12 +70,6 @@ to add instrumentation libraries to this directory over time.  The
 \texttt{instlibs/utils} directory contains a templatized device-side
 hash map to facilitate bookkeeping.
 
-Finally, the \texttt{tool} directory contains several binary
-installers for different platforms.  The core of SASSI (i.e., SASSI's
-version of \texttt{ptxas}) is closed-source.  The binary installer
-simply unpacks SASSI's header files and \texttt{ptxas} and copies them
-to the user's desired installation directory.
-
 \begin{figure*}
 \center
 \begin{verbatim}
@@ -98,10 +94,6 @@ $SASSI_REPO
     | utils
        | sassi-dictionary.hpp
        | ...
-  | tool
-    | SASSI_x86_64_centos_6.run
-    | SASSI_x86_64_debian_wheezy.run
-    | ...
 \end{verbatim}
 \caption{The directory structure of the SASSI project.}
 \label{fig:structure}
@@ -109,14 +101,17 @@ $SASSI_REPO
 
 \subsection{Installation}
 
-To install SASSI, navigate to the \texttt{tool} directory, choose the
-correct installer for your platform, and execute it.  For example to
-install SASSI on an Ubuntu 15 x86-64 host,
-
-\begin{lstlisting}[style=BashInputStyle]
-cd $SASSI_REPO/tool
-./SASSI_x86_64_ubuntu_vivid
-\end{lstlisting}
+We are using GitHub's ``releases'' functionality to release the
+closed-source portion of SASSI.  Specifically, we are distributing
+SASSI as a self-extracting installer that installs SASSI's specialized
+version of \texttt{ptxas} and SASSI's header files that describe
+SASSI's API.  To get a binary installer for your architecture, go to:\\
+\begin{center}
+\texttt{https://github.com/NVlabs/SASSI/releases}
+\end{center}
+Choose the installer for your architecture, download it, and execute it.
+For example to install SASSI on an Ubuntu 15 x86-64 host, get the
+installer, \texttt{SASSI\_x86\_64\_ubuntu\_vivid}, then execute it.
 
 The installation script performs the following very simple tasks:
 \begin{enumerate}

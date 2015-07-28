@@ -1,32 +1,68 @@
+SASSI Instrumentation Tool for NVIDIA GPUs
+==========================================
+
 This project contains the SASSI instrumentation tool.  SASSI is not
 part of the official CUDA toolkit, but instead is a research prototype
 from the Architecture Research Group at NVIDIA.
 
-Directory Structure
---------------------
+SASSI is a selective instrumentation framework
+for NVIDIA GPUs.  SASSI stands for SASS Instrumenter, where SASS is
+NVIDIA's name for its native ISA.  SASSI is a pass in NVIDIA's backend
+compiler, ptxas, that selectively inserts instrumentation
+code.  The purpose of SASSI is to allow users to measure or modify
+ptxas-generated SASS by injecting instrumentation code
+*during* code generation.
 
-This directory contains the SASSI release, which is comprised of the
-following items:
+NVIDIA has many excellent development tools. Why the need for another
+tool? NVIDIA's tools such as cuda-memcheck and nvvp provide excellent,
+but *fixed-function* inspection of programs.  While they are great at
+what they are designed for, the user has to choose from a fixed menu
+of program characteristics to measure.  If you want to measure some
+aspect of program execution outside the purview of those tools you are
+out of luck.  SASSI allows users to flexibly inject their own
+instrumentation to measure novel aspects of GPGPU execution.
 
-tool:     This directory contains the SASSI-enabled ptxas binary for a
-	  number of targets, the SASSI header files, and an
-	  installation script.
+SASSI consists of two main components:
+* A closed-source fork of NVIDIA's PTX assembler, ptxas, that is capable of
+injecting instrumentation code during compilation.  SASSI's version of
+ptxas is distributed on GitHub via "Releases".
+* Several realistic samples that demonstrate SASSI's operation.
 
+Prerequisites
+------------------
 
-instlibs: Sample instrumentatation libraries.  Note: the samples rely
-	  on a modified version of halloc, which we have included.
+SASSI has the following system prerequisites:
 
-
-doc: 	  Documentation including the SASSI user's guide and ISCA paper.
-
+1. Platform requirement: SASSI requires an X86 64-bit host; a Fermi-,
+  Kepler-, or Maxwell-based GPU; and at the time of this writing we
+  have generated SASSI for Ubuntu (12 and 15), Debian 7, and CentOS 6.
+2. Install CUDA 7: At the time of this writing, CUDA 7 can be
+  fetched [from here](https://developer.nvidia.com/cuda-downloads).
+3. Make sure you have a 346.41 driver or newer: The CUDA 7
+  installation script can install a new driver for you that meets this
+  requirement.  If you already have a newer driver, that should be
+  fine.  You can test your driver version with the "nvidia-smi"
+  command.
 
 Installation
 ------------------
 
-To install SASSI, please follow the instructions in the user guide,
-which you can find at ./doc/sassi-user-guide.pdf.  If you are really
-impatient, find and execute the binary installer for your platform in
-the ./tool directory.
+After you have fulfilled your prerequisites, install SASSI by doing the following:
+
+1. Find the release for your platform by clicking on the "release" tab on the
+GitHub project page, or by [navigating
+here](https://github.com/NVlabs/SASSI/releases). Find your
+architecture in the "Downloads" list and download.  This download is a
+very simple binary installer.
+2. Run the installer.
+
+Usage
+------------------
+
+For usage, please follow the instructions in the user guide, which you
+can find in doc/sassi-user-guide.pdf.
+
+Additionally, "ptxas -h" lists SASSI's supported options.
 
 Restrictions
 ------------------
