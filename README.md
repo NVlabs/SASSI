@@ -91,5 +91,5 @@ affects performance.
     This version of SASSI is designed to work with the CUDA 7 toolchain,
     which also has that requirement.
 
-4. Compiler-inserted MEMBARs and TEXDEPBARs are not accounted for.
+
 
