@@ -39,7 +39,7 @@ First, let's walk through SASSI's prerequisites.
   command.
 \item {\bf Get the SASSI project}: You can get the SASSI project from
   GitHub via the following command: \\ \\ \texttt{git clone
-    https://github.com/NVlabs/SASSI} \\
+    https://github.com/NVlabs/SASSI} \\ \\
   The project that you get will be your \texttt{\$SASSI\_REPO}.  The
   project contains several sample instrumentation libraries,
   documentation, and useful utilities.
@@ -109,9 +109,13 @@ SASSI's API.  To get a binary installer for your architecture, go to:\\
 \begin{center}
 \texttt{https://github.com/NVlabs/SASSI/releases}
 \end{center}
-Choose the installer for your architecture, download it, and execute it.
-For example to install SASSI on an Ubuntu 15 x86-64 host, get the
-installer, \texttt{SASSI\_x86\_64\_ubuntu\_vivid}, then execute it.
+Choose the installer for your architecture, download it, and execute
+it.  The installer is simply a shell script. For example to install SASSI
+on an Ubuntu 15 x86-64 host, get the installer,
+\texttt{SASSI\_x86\_64\_ubuntu\_vivid}, then execute it:
+\begin{center}
+\texttt{sh SASSI\_x86\_64\_ubuntu\_vivid}
+\end{center}
 
 The installation script performs the following very simple tasks:
 \begin{enumerate}

@@ -41,7 +41,7 @@ SASSI has the following system prerequisites:
 3. Make sure you have a 346.41 driver or newer: The CUDA 7
   installation script can install a new driver for you that meets this
   requirement.  If you already have a newer driver, that should be
-  fine.  You can test your driver version with the "nvidia-smi"
+  fine.  You can test your driver version with the `nvidia-smi`
   command.
 
 Installation
@@ -54,15 +54,18 @@ GitHub project page, or by [navigating
 here](https://github.com/NVlabs/SASSI/releases). Find your
 architecture in the "Downloads" list and download.  This download is a
 very simple binary installer.
-2. Run the installer.
+2. Run the installer via `sh`, for example, `sh SASSI_x86_64_centos_6.run`.
+
+You might need to run the installer as root, depending on where you
+plan to install SASSI.
 
 Usage
 ------------------
 
 For usage, please follow the instructions in the user guide, which you
-can find in doc/sassi-user-guide.pdf.
+can find in `doc/sassi-user-guide.pdf`.
 
-Additionally, "ptxas -h" lists SASSI's supported options.
+Additionally, `ptxas -h` lists SASSI's supported options.
 
 Restrictions and caveats
 ------------------
@@ -74,13 +77,13 @@ Restrictions and caveats
     be useful though, because it probably wouldn't be too hard to
     support.
 
-2. Programs currently have to be compiled with "-rdc=true", which
+2. Programs currently have to be compiled with `-rdc=true`, which
 affects performance.
 
     SASSI allows users to instrument code by injecting function calls to
     user-defined functions that are later linked in.  In order to perform
     cross-module function calls in CUDA one must use the "relocatable
-    device code" option, "-rdc=true".  Future versions of SASSI may remove
+    device code" option, `-rdc=true`.  Future versions of SASSI may remove
     this restriction.
 
 3. Minimum driver required is 346.41.

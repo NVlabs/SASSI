@@ -42,19 +42,19 @@ INST_LIB_DIR = ../instlibs/lib
 
 # Depending on the experiment, let's choose different SASSI options.
 branch: EXTRA_NVCC_FLAGS = $(BEFORE_COND_BRANCHES) $(BEFORE_COND_BRANCH_INFO) $(NVCC_FLAGS)
-branch: EXTRA_LINK_FLAGS = $(LINK_FLAGS) $(CUPTI) -L$(INST_LIB_DIR) -lbranch
+branch: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lbranch $(CUPTI) 
 
 none: EXTRA_NVCC_FLAGS = $(NVCC_FLAGS)
 none: EXTRA_LINK_FLAGS = $(LINK_FLAGS) 
 
 memdiverge: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) $(NVCC_FLAGS)
-memdiverge: EXTRA_LINK_FLAGS = $(LINK_FLAGS) $(CUPTI) -L$(INST_LIB_DIR) -lmemdiverge
+memdiverge: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lmemdiverge $(CUPTI) 
 
 ophist: EXTRA_NVCC_FLAGS = $(BEFORE_ALL) $(NVCC_FLAGS)
-ophist: EXTRA_LINK_FLAGS = $(LINK_FLAGS) $(CUPTI) -L$(INST_LIB_DIR) -lophist
+ophist: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lophist $(CUPTI) 
 
 valueprof: EXTRA_NVCC_FLAGS = $(AFTER_REG) $(AFTER_REG_INFO) $(IFF) $(NVCC_FLAGS)
-valueprof: EXTRA_LINK_FLAGS = $(LINK_FLAGS) $(CUPTI) -L$(INST_LIB_DIR) -lvalueprof 
+valueprof: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lvalueprof $(CUPTI) 
 
 $(EXAMPLES): $(TARGET)
 

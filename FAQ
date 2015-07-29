@@ -29,3 +29,10 @@
    of the production compiler, and thus in some cases, code generation
    may differ from that of the official ptxas.  But in all cases, the
    performance of the generated code should be highly competitive.
+
+4. Why am I seeing a bunch of CUPTI-related link errors?
+
+   Link order is very important with nvcc, with library functions only 
+   being linked in "as-needed".  Therefore, if your instrumentation 
+   library depends on CUPTI, make sure to link in CUPTI *after* your
+   library.
