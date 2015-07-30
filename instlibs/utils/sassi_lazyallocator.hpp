@@ -120,7 +120,8 @@ namespace sassi {
 
     /////////////////////////////////////////////////////////////////////////////
     //
-    //  Called when the device will be reset.
+    //  Our main CUPTI callback for handling launches and cases where the 
+    //  device is reset.
     //
     /////////////////////////////////////////////////////////////////////////////
     static void CUPTIAPI cupti_cb(void *userdata,

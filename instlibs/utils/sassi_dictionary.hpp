@@ -50,15 +50,6 @@ namespace sassi {
   template <typename K, typename V>
   class dictionary: public managed
   {
-    struct keytable {
-      int32_t metadata;
-      K key;
-    };
-
-    const int32_t UNLOCKED_ENTRY = 0x0;
-    const int32_t VALID_ENTRY    = 0x1;
-    const int32_t LOCKED_ENTRY   = 0X2;
-
   public:
 
     typedef unsigned               size_type;
@@ -68,7 +59,9 @@ namespace sassi {
 
     /////////////////////////////////////////////////////////////////////////////
     //
-    // Create a new hashable array.
+    // Create a new dictionary.  The dictionary is created on the host, and
+    // uses UVM (cudaMallocManaged) so that we can view the hashtable on the
+    // host after our kernels finish executing.
     //
     /////////////////////////////////////////////////////////////////////////////
     dictionary(size_type slots = 1088723, unsigned maxRetries = 8): 
@@ -89,7 +82,6 @@ namespace sassi {
     /////////////////////////////////////////////////////////////////////////////
     __device__ V *getOrInit(K key, nvstd::function<void (V*)> init)
     {
-      bool needRehash = true;
       V *retVal = NULL;
 
       uint64_t h1 = key * 1076279;
@@ -98,7 +90,7 @@ namespace sassi {
 
       // We will try several times to find an empty slot for the key-value
       // pair.  On each try, there are three cases we need to consider.
-      for (; needRehash && (attempts <= m_maxRetries); attempts++)
+      for (; attempts <= m_maxRetries; attempts++)
       {
 	unsigned h = (unsigned)((h1 + attempts * h2) % m_slots);
 	int32_t *metaPtr = &(m_keytable[h].metadata);
@@ -107,7 +99,6 @@ namespace sassi {
 	if (old == 0) {
 	  // 1. The entry is empty and we got the lock.
 	  // Let's initialize the key and call the user's init function.
-	  needRehash = false;
 	  m_keytable[h].key = key;
 	  init(&(m_valtable[h]));
 	  *metaPtr = VALID_ENTRY;
@@ -115,6 +106,7 @@ namespace sassi {
 	  __threadfence();
 
 	  retVal = &(m_valtable[h]);
+	  break;
 	}
 
 	if (old == LOCKED_ENTRY) {
@@ -133,9 +125,9 @@ namespace sassi {
 	  //    same, then we can return the value associated with the tuple.
 	  //    Otherwise, we need to rehash.
 	  bool compares = (key == m_keytable[h].key);
-	  needRehash = !compares;
 	  if (compares) {
 	    retVal = &(m_valtable[h]);
+	    break;
 	  }
 	}	
       }
@@ -160,7 +152,7 @@ namespace sassi {
 
     /////////////////////////////////////////////////////////////////////////////
     //
-    //  Applies 'fun' to every key and value in the bintree.
+    //  Applies 'fun' to every key and value in the dictionary.
     //
     /////////////////////////////////////////////////////////////////////////////
     void map(std::function<void (K&,V&)> fun)
@@ -174,7 +166,7 @@ namespace sassi {
   
     /////////////////////////////////////////////////////////////////////////////
     //
-    //  Empties the hash table.
+    //  Empties the dictionary.
     //
     /////////////////////////////////////////////////////////////////////////////
     void clear()
@@ -188,7 +180,7 @@ namespace sassi {
   
     /////////////////////////////////////////////////////////////////////////////
     //
-    //  This host side destructor frees up the dynamically allocated memory
+    //  This host-side destructor frees up the dynamically allocated memory
     //  on the device.
     //
     /////////////////////////////////////////////////////////////////////////////
@@ -199,6 +191,15 @@ namespace sassi {
     }
   
   protected:
+
+    struct keytable {
+      int32_t metadata;
+      K key;
+    };
+
+    const int32_t UNLOCKED_ENTRY = 0x0;
+    const int32_t VALID_ENTRY    = 0x1;
+    const int32_t LOCKED_ENTRY   = 0X2;
   
     size_type m_size;
     const unsigned m_slots;
