@@ -3,9 +3,30 @@
 
    SASSI is cooked into the production backend compiler, which is not
    open source, and probably never will be.  If you really want to see
-   the code, please come work for NVIDIA.
+   the code, please come work for NVIDIA. :)
 
-2. Why is my instrumented program generating "illegal memory access"
+2. Why is the installation script crashing with the following error?:
+
+   Traceback (most recent call last):
+     File "setup", line 114, in <module>
+       install(cuda7Root, sassi7Root)
+     File "setup", line 56, in install
+      print "COPYING files from {}...".format(cuda_dir)
+      ValueError: zero length field name in format
+
+   The installation script is written in Python, and it uses a 
+   command, `format`, that requires Python 2.7 or newer.  Please
+   upgrade your version of Python and try again if you run into
+   this problem.
+
+3. Why don't the instrumentation libraries build for Fermi?
+
+   Most of the instrumentation libraries use features that are only
+   available in 3.0+ architectures.  There are a couple of very simple
+   example libraries that work with Fermi.  Try `make fermi-only`
+   when building the instrumentation libraries to build them.
+
+4. Why is my instrumented program generating "illegal memory access"
    errors?
 
    We have seen this for a number of reasons, including:
@@ -22,7 +43,7 @@
    3. You're using an old version of CUPTI.  If you're going to use
       CUPTI, you should use the CUDA 7 version.
 
-3. Why doesn't the SASSI version of ptxas generate exactly the same
+5. Why doesn't the SASSI version of ptxas generate exactly the same
    code as the version distributed in the official toolkit?
 
    The backend compiler in which SASSI is embedded is based on a fork
@@ -30,7 +51,7 @@
    may differ from that of the official ptxas.  But in all cases, the
    performance of the generated code should be highly competitive.
 
-4. Why am I seeing a bunch of CUPTI-related link errors?
+6. Why am I seeing a bunch of CUPTI-related link errors?
 
    Link order is very important with nvcc, with library functions only 
    being linked in "as-needed".  Therefore, if your instrumentation 
