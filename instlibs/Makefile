@@ -10,6 +10,9 @@ all: instlibs
 instlibs: lib
 	make -C src install
 
+fermi-only: lib
+	make -C src install-fermi-only
+
 lib:
 	mkdir lib
 

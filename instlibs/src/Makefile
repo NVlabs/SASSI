@@ -7,12 +7,14 @@
 # Setup your variables in env.mk before building!
 include ../env.mk
 
+# These libraries work with Fermi, the others do not.
+export FERMI_LIBS := libophist20.a libstubs.a 
+
 # Decide which libraries you want to compile.
 export LIBS := 	libbranch.a \
 		libmemdiverge.a \
 		libophist.a \
 		libopcode.a \
-		libstubs.a \
 		libvalueprof.a
 
 
@@ -24,8 +26,11 @@ NVCC = $(CUDA_HOME)/bin/nvcc
 CUPTI = $(CUDA_HOME)/extras/CUPTI
 
 INSTALLED_LIBS := $(addprefix $(INSTALL_DIR)/lib/, $(LIBS))
+INSTALLED_FERMI_LIBS := $(addprefix $(INSTALL_DIR)/lib/, $(FERMI_LIBS))
 
-install: $(INSTALLED_LIBS)
+install: $(INSTALLED_LIBS) $(INSTALLED_FERMI_LIBS)
+
+install-fermi-only: $(INSTALLED_FERMI_LIBS)
 
 $(INSTALL_DIR)/lib/lib%.a: %.o
 	ar r $@ $^
