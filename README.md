@@ -43,6 +43,7 @@ SASSI has the following system prerequisites:
   requirement.  If you already have a newer driver, that should be
   fine.  You can test your driver version with the `nvidia-smi`
   command.
+4. The installation script requires Python 2.7 or newer.
 
 Installation
 ------------------
