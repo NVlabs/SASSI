@@ -7,9 +7,12 @@ export INSTALL_DIR := $(PWD)
 
 all: instlibs
 
+# This target will build all the example libraries,
+# but it requires 3.0+ devices.
 instlibs: lib
 	make -C src install
 
+# Use this target if you targeting a Fermi device.
 fermi-only: lib
 	make -C src install-fermi-only
 

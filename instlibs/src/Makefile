@@ -8,12 +8,11 @@
 include ../env.mk
 
 # These libraries work with Fermi, the others do not.
-export FERMI_LIBS := libophist20.a libstubs.a 
+export FERMI_LIBS := libophist.a libstubs.a 
 
 # Decide which libraries you want to compile.
 export LIBS := 	libbranch.a \
 		libmemdiverge.a \
-		libophist.a \
 		libopcode.a \
 		libvalueprof.a
 
