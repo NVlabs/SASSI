@@ -35,12 +35,15 @@
  initialized.  If we try to do CUDA or CUPTI related things in a static 
  constructor, it is very possible that the CUDA runtime has not even 
  been initialized.
+ This class also provides an interface to call a function before and/or after
+ kernel calls. 
 \****************************************************************************/
 
 #ifndef __SASSI_LAZYALLOCATOR_HPP___
 #define __SASSI_LAZYALLOCATOR_HPP___
 
 #include <cupti.h>
+#include <string>
 #include "sassi_intrinsics.h"
 
 namespace sassi {
@@ -56,6 +59,7 @@ namespace sassi {
 
     typedef lazy_allocator  self_type;
     typedef void (*user_cb_type)(void);
+    typedef void (*user_ee_cb_type)(const CUpti_CallbackData *); // user entry or exit call back type
     
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -63,15 +67,27 @@ namespace sassi {
     //
     /////////////////////////////////////////////////////////////////////////////    
     lazy_allocator(user_cb_type init_cb,
-		   user_cb_type reset_cb):
-      init_cb(init_cb), reset_cb(reset_cb), valid_data(false)
+		   user_cb_type reset_cb, 
+			 user_ee_cb_type entry_cb, 
+			 user_ee_cb_type exit_cb):
+      init_cb(init_cb), reset_cb(reset_cb), entry_cb(entry_cb), exit_cb(exit_cb), valid_data(false)
     {
       CHECK_CUPTI_ERROR(cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)cupti_cb, this),
 			"cuptiSubscribe");
       setupLaunchCB();
       setupResetCB();
     }
-    
+
+    lazy_allocator(user_cb_type init_cb,
+		   user_cb_type reset_cb):
+      init_cb(init_cb), reset_cb(reset_cb), entry_cb([](const CUpti_CallbackData*){}), exit_cb([](const CUpti_CallbackData*){}), valid_data(false)
+    {
+      CHECK_CUPTI_ERROR(cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)cupti_cb, this),
+			"cuptiSubscribe");
+      setupLaunchCB();
+      setupResetCB();
+    }
+
     /////////////////////////////////////////////////////////////////////////////
     //
     //  The destructor should be called after main exits.
@@ -132,31 +148,35 @@ namespace sassi {
       self_type *ld = (self_type*) userdata;
 
       if ((cbid == CUPTI_RUNTIME_TRACE_CBID_cudaDeviceReset_v3020) ||
-	  (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaThreadExit_v3020))
+          (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaThreadExit_v3020))
       {
-	if (ld->valid_data) {
-	  cudaDeviceSynchronize();
+        if (ld->valid_data) {
+          cudaDeviceSynchronize();
+
+          // Call the reset_cb function.
+          if (ld->reset_cb) ld->reset_cb();
+          ld->valid_data = false;
 	  
-	  // Call the reset_cb function.
-	  if (ld->reset_cb) ld->reset_cb();
-	  ld->valid_data = false;
-	  
-	  // Since we reset the device, let's also re-register the init function.
-	  ld->setupLaunchCB();
-	}
+          // Since we reset the device, let's also re-register the init function.
+          ld->setupLaunchCB();
+        }
       }
       else if (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020)
       {
-	cudaDeviceSynchronize();
+        cudaDeviceSynchronize();
 	
-	// Call the init_cb function.
-	ld->valid_data = true;
-	ld->init_cb();
+        // Call the init_cb function only once
+        if(!ld->valid_data) {
+          ld->valid_data = true;
+          ld->init_cb();
+        }
 	
-	// Now let's unsubscribe so this is never called again.
-	CHECK_CUPTI_ERROR(cuptiEnableCallback(0, ld->subscriber, CUPTI_CB_DOMAIN_RUNTIME_API,
-					      CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020),
-			  "Problem unsubscribing");
+        if (cbInfo->callbackSite == CUPTI_API_ENTER) { // Call the user defined entry_cb function on every kernel entry
+          ld->entry_cb(cbInfo);
+        } else if (cbInfo->callbackSite == CUPTI_API_EXIT) { // Call the user defined exit_cb function on every kernel exit
+          ld->exit_cb(cbInfo);
+        }
+
       }
     }
 
@@ -166,6 +186,8 @@ namespace sassi {
     bool                   valid_data;
     const user_cb_type     init_cb;
     const user_cb_type     reset_cb;
+    const user_ee_cb_type     entry_cb;
+    const user_ee_cb_type     exit_cb;
   };
 
 } // End namespace.
