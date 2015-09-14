@@ -59,7 +59,7 @@ namespace sassi {
 
     typedef lazy_allocator  self_type;
     typedef void (*user_cb_type)(void);
-    typedef void (*user_ee_cb_type)(const CUpti_CallbackData *); // user entry or exit call back type
+    typedef void (*user_ee_cb_type)(const CUpti_CallbackData *); // user entry or exit callback type
     
     /////////////////////////////////////////////////////////////////////////////
     //
@@ -68,8 +68,8 @@ namespace sassi {
     /////////////////////////////////////////////////////////////////////////////    
     lazy_allocator(user_cb_type init_cb,
 		   user_cb_type reset_cb, 
-			 user_ee_cb_type entry_cb, 
-			 user_ee_cb_type exit_cb):
+		   user_ee_cb_type entry_cb, 
+		   user_ee_cb_type exit_cb):
       init_cb(init_cb), reset_cb(reset_cb), entry_cb(entry_cb), exit_cb(exit_cb), valid_data(false)
     {
       CHECK_CUPTI_ERROR(cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)cupti_cb, this),
@@ -77,10 +77,13 @@ namespace sassi {
       setupLaunchCB();
       setupResetCB();
     }
-
+    
     lazy_allocator(user_cb_type init_cb,
 		   user_cb_type reset_cb):
-      init_cb(init_cb), reset_cb(reset_cb), entry_cb([](const CUpti_CallbackData*){}), exit_cb([](const CUpti_CallbackData*){}), valid_data(false)
+      init_cb(init_cb), reset_cb(reset_cb), 
+      entry_cb([](const CUpti_CallbackData*){}), 
+      exit_cb([](const CUpti_CallbackData*){}), 
+      valid_data(false)
     {
       CHECK_CUPTI_ERROR(cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)cupti_cb, this),
 			"cuptiSubscribe");
@@ -156,9 +159,6 @@ namespace sassi {
           // Call the reset_cb function.
           if (ld->reset_cb) ld->reset_cb();
           ld->valid_data = false;
-	  
-          // Since we reset the device, let's also re-register the init function.
-          ld->setupLaunchCB();
         }
       }
       else if (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020)
@@ -171,12 +171,13 @@ namespace sassi {
           ld->init_cb();
         }
 	
-        if (cbInfo->callbackSite == CUPTI_API_ENTER) { // Call the user defined entry_cb function on every kernel entry
+        if (cbInfo->callbackSite == CUPTI_API_ENTER) { 
+	  // Call the user defined entry_cb function on every kernel entry
           ld->entry_cb(cbInfo);
-        } else if (cbInfo->callbackSite == CUPTI_API_EXIT) { // Call the user defined exit_cb function on every kernel exit
+        } else if (cbInfo->callbackSite == CUPTI_API_EXIT) { 
+	  // Call the user defined exit_cb function on every kernel exit
           ld->exit_cb(cbInfo);
         }
-
       }
     }
 
@@ -186,8 +187,8 @@ namespace sassi {
     bool                   valid_data;
     const user_cb_type     init_cb;
     const user_cb_type     reset_cb;
-    const user_ee_cb_type     entry_cb;
-    const user_ee_cb_type     exit_cb;
+    const user_ee_cb_type  entry_cb;
+    const user_ee_cb_type  exit_cb;
   };
 
 } // End namespace.
