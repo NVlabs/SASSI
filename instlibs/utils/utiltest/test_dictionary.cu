@@ -35,6 +35,8 @@
 #include <stdlib.h>
 #include <set>
 #include <unordered_map>
+#include <map>
+#include <string>
 #include <vector>
 #include <nvfunctional>
 #include <sys/time.h>
@@ -46,6 +48,8 @@ typedef sassi::dictionary<int, unsigned> IUMap;
 
 __managed__ IUMap *map;
 
+std::map<std::string, int> kCountMap;  // count number of kernel invocations
+bool verbose = false;
 
 ////////////////////////////////////////////////////////////////////////////////////
 //
@@ -53,9 +57,62 @@ __managed__ IUMap *map;
 //  allocate our data structures before the first kernel launch.
 //
 ////////////////////////////////////////////////////////////////////////////////////
-static sassi::lazy_allocator mapAllocator([]() {
-    map = new IUMap(5800079, 128);
-  }, NULL);
+static void mapAllocate() {
+  map = new IUMap(5800079, 128);
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+//
+// User defined host funtion to be executed on kernel entry.
+// User has access to const CUpti_CallbackData* cbInfo. 
+//
+////////////////////////////////////////////////////////////////////////////////////
+static void onKernelEntry(const CUpti_CallbackData* cbInfo) {
+	std::string kName = cbInfo->symbolName;
+	if (kCountMap.find(kName) != kCountMap.end()) { // kernel name found in kCountMap
+		kCountMap[kName] += 1;
+	} else { // kernel if seen for the first time
+		kCountMap[kName] = 1;
+	}
+		
+	if (verbose) {
+  	printf("\nKernelEntry: Name=%s, Invocation count=%d\n", kName.c_str(), kCountMap[kName]);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+//
+// User defined host funtion to be executed on every kernel exit.
+// User has access to const CUpti_CallbackData* cbInfo. 
+//
+////////////////////////////////////////////////////////////////////////////////////
+static void onKernelExit(const CUpti_CallbackData* cbInfo) {
+	cudaError_t * error = (cudaError_t*) cbInfo->functionReturnValue;
+	if ( (*error) != cudaSuccess ) {
+		printf("Kernel Exit Error: %d", (*error));
+	}
+
+	if (verbose) {
+  	printf("KernelExit: Name=%s, Return value=%d\n", cbInfo->symbolName, *error);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+//
+// This user defined host function will be called after all kernels have been executed.
+// This exmaple prints the list of kernel names that were executed during a particular 
+// run along with the number of invocations.
+//
+////////////////////////////////////////////////////////////////////////////////////
+static void finalize() {
+	std::map<std::string, int>::iterator it;
+	for(it=kCountMap.begin(); it!=kCountMap.end(); ++it) {
+	 printf("Kernel Name: %s, Num invocations: %d\n", it->first.c_str(),  it->second);
+	}
+}
+
+static sassi::lazy_allocator mapAllocator(mapAllocate, finalize, onKernelEntry, onKernelExit);
+
 
 
 ////////////////////////////////////////////////////////////////////////////////////
