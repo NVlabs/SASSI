@@ -5,8 +5,8 @@ OBJECTS := matrixMul.o
 include ../instlibs/env.mk
 
 LINK_FLAGS += -lcudadevrt
-NVCC_FLAGS += -O3 -dc
-CXX_FLAGS += -O3
+NVCC_FLAGS += -g -O3 -dc
+CXX_FLAGS += -g -O3
 
 # What example do you want to build?
 EXAMPLES := branch none memdiverge ophist valueprof
@@ -42,19 +42,19 @@ INST_LIB_DIR = ../instlibs/lib
 
 # Depending on the experiment, let's choose different SASSI options.
 branch: EXTRA_NVCC_FLAGS = $(BEFORE_COND_BRANCHES) $(BEFORE_COND_BRANCH_INFO) $(NVCC_FLAGS) 
-branch: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lbranch $(CUPTI) 
+branch: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lbranch $(CUPTI) $(LINK_FLAGS) 
 
-none: EXTRA_NVCC_FLAGS = $(NVCC_FLAGS) -Xptxas -v
+none: EXTRA_NVCC_FLAGS = $(NVCC_FLAGS) -Xptxas 
 none: EXTRA_LINK_FLAGS = $(LINK_FLAGS) 
 
 memdiverge: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) $(NVCC_FLAGS) 
-memdiverge: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lmemdiverge $(CUPTI) 
+memdiverge: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lmemdiverge $(CUPTI) $(LINK_FLAGS) 
 
-ophist: EXTRA_NVCC_FLAGS = $(BEFORE_ALL) $(NVCC_FLAGS) -Xptxas -v
-ophist: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lophist $(CUPTI) 
+ophist: EXTRA_NVCC_FLAGS = $(BEFORE_ALL) $(NVCC_FLAGS) -Xptxas 
+ophist: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lophist $(CUPTI) $(LINK_FLAGS) 
 
 valueprof: EXTRA_NVCC_FLAGS = $(AFTER_REG) $(AFTER_REG_INFO) $(IFF) $(NVCC_FLAGS)
-valueprof: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lvalueprof $(CUPTI) 
+valueprof: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lvalueprof $(CUPTI) $(LINK_FLAGS) 
 
 $(EXAMPLES): $(TARGET)
 
