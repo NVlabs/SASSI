@@ -43,7 +43,9 @@
 #define __SASSI_LAZYALLOCATOR_HPP___
 
 #include <cupti.h>
+#include <cstdlib>
 #include <string>
+#include <list>
 #include "sassi_intrinsics.h"
 
 namespace sassi {
@@ -57,32 +59,27 @@ namespace sassi {
   class lazy_allocator {
   public:
 
+    enum class device_reset_reason {
+      DEVICE_RESET,
+      PROGRAM_EXIT
+    };
+
     typedef lazy_allocator  self_type;
-    typedef void (*user_cb_type)(void);
-    typedef void (*user_ee_cb_type)(const CUpti_CallbackData *); // user entry or exit callback type
+    typedef void (*device_init_cb_type)();
+    typedef void (*device_reset_cb_type)(device_reset_reason);
+    typedef void (*kernel_ee_cb_type)(const CUpti_CallbackData*);
     
     /////////////////////////////////////////////////////////////////////////////
     //
     //  Registers the user's callbacks.
     //
     /////////////////////////////////////////////////////////////////////////////    
-    lazy_allocator(user_cb_type init_cb,
-		   user_cb_type reset_cb, 
-		   user_ee_cb_type entry_cb, 
-		   user_ee_cb_type exit_cb):
-      init_cb(init_cb), reset_cb(reset_cb), entry_cb(entry_cb), exit_cb(exit_cb), valid_data(false)
-    {
-      CHECK_CUPTI_ERROR(cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)cupti_cb, this),
-			"cuptiSubscribe");
-      setupLaunchCB();
-      setupResetCB();
-    }
-    
-    lazy_allocator(user_cb_type init_cb,
-		   user_cb_type reset_cb):
+    lazy_allocator(device_init_cb_type init_cb,
+		   device_reset_cb_type reset_cb, 
+		   kernel_ee_cb_type kernel_entry_cb = [](const CUpti_CallbackData*){}, 
+		   kernel_ee_cb_type kernel_exit_cb = [](const CUpti_CallbackData*){}):
       init_cb(init_cb), reset_cb(reset_cb), 
-      entry_cb([](const CUpti_CallbackData*){}), 
-      exit_cb([](const CUpti_CallbackData*){}), 
+      entry_cb(kernel_entry_cb), exit_cb(kernel_exit_cb), 
       valid_data(false)
     {
       CHECK_CUPTI_ERROR(cuptiSubscribe(&subscriber, (CUpti_CallbackFunc)cupti_cb, this),
@@ -90,16 +87,11 @@ namespace sassi {
       setupLaunchCB();
       setupResetCB();
     }
-
-    /////////////////////////////////////////////////////////////////////////////
-    //
-    //  The destructor should be called after main exits.
-    //
-    /////////////////////////////////////////////////////////////////////////////    
-    ~lazy_allocator()
+    
+    ~lazy_allocator() 
     {
-      if (valid_data && reset_cb != NULL) {
-	reset_cb();
+      if (valid_data && reset_cb) {
+	reset_cb(device_reset_reason::PROGRAM_EXIT);
       }
     }
     
@@ -153,19 +145,14 @@ namespace sassi {
       if ((cbid == CUPTI_RUNTIME_TRACE_CBID_cudaDeviceReset_v3020) ||
           (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaThreadExit_v3020))
       {
-        if (ld->valid_data) {
-          cudaDeviceSynchronize();
-
-          // Call the reset_cb function.
-          if (ld->reset_cb) ld->reset_cb();
-          ld->valid_data = false;
-        }
+	if (ld->valid_data && ld->reset_cb) {
+	  ld->reset_cb(device_reset_reason::DEVICE_RESET);
+	  ld->valid_data = false;
+	}
       }
       else if (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020)
       {
-        cudaDeviceSynchronize();
-	
-        // Call the init_cb function only once
+        // Call the init_cb function only once. 
         if(!ld->valid_data) {
           ld->valid_data = true;
           ld->init_cb();
@@ -183,12 +170,12 @@ namespace sassi {
 
   private:
 
-    CUpti_SubscriberHandle subscriber;
-    bool                   valid_data;
-    const user_cb_type     init_cb;
-    const user_cb_type     reset_cb;
-    const user_ee_cb_type  entry_cb;
-    const user_ee_cb_type  exit_cb;
+    CUpti_SubscriberHandle     subscriber;
+    bool                       valid_data;
+    const device_init_cb_type  init_cb;
+    const device_reset_cb_type reset_cb;
+    const kernel_ee_cb_type    entry_cb;
+    const kernel_ee_cb_type    exit_cb;
   };
 
 } // End namespace.
