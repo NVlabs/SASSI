@@ -72,7 +72,7 @@ static sassi::lazy_allocator counterInitializer(
   }, 
 
   /* Dump the stats. */
-  []() {
+  [](sassi::lazy_allocator::device_reset_reason reason) {
     FILE *rf = fopen("sassi-memdiverge.txt", "a");
     fprintf(rf, "Active x Diverged:\n");
     for (unsigned m = 0; m <= WARP_SIZE; m++) {

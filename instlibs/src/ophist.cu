@@ -73,11 +73,9 @@ __device__ void sassi_before_handler(SASSIBeforeParams* bp)
 ///  Write out the statistics we've gathered.
 /// 
 ///////////////////////////////////////////////////////////////////////////////////
-static void sassi_finalize()
+static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
 {
   unsigned long long instr_counts[SASSI_NUM_OPCODES];
-
-  cudaDeviceSynchronize();
 
   // Copy the data off of the device.
   CHECK_CUDA_ERROR(cudaMemcpyFromSymbol(&instr_counts, dynamic_instr_counts, sizeof(instr_counts)));

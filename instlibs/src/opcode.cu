@@ -111,14 +111,12 @@ static void print_cc(FILE *resultsFile, bool cc)
 ///  Write out the statistics we've gathered.
 /// 
 ///////////////////////////////////////////////////////////////////////////////////
-static void sassi_finalize()
+static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
 {
   struct KVTuple {
     uint64_t pupc;
     SASSIInfo *v;
   };
-
-  cudaDeviceSynchronize();
 
   FILE *resultsFile = fopen("sassi-opcode-map.txt", "a");
 
