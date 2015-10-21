@@ -197,15 +197,13 @@ static __managed__ sassi::dictionary<uint64_t, SASSOp> *sassi_stats;
 ///  aggregated statistics.
 ///
 ///////////////////////////////////////////////////////////////////////////////////
-static void sassi_finalize()
+static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
 {
   struct KVTuple {
     uint64_t k;
     SASSOp *v;
   };
 
-  cudaDeviceSynchronize();
-  
   FILE *resultsFile = fopen("sassi-valueprof.txt", "w");
   
   fprintf(resultsFile, "\nValue profiling results\n");

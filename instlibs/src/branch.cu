@@ -54,7 +54,6 @@
 #include <sassi/sassi-core.hpp>
 #include <sassi/sassi-branch.hpp>
 
-
 struct BranchCounter {
   uint64_t address;
   int32_t branchType;                    // The branch type.
@@ -65,7 +64,6 @@ struct BranchCounter {
   unsigned long long divergentBranches;   // Not all branches go the same way.
   unsigned long long activeThreads;       // Number of active threads.
 };                                        
-
 
 // The actual dictionary of counters, where the key is a branch's PC, and
 // the value is the set of counters associated with it.
@@ -79,13 +77,11 @@ const char *SASSIBranchTypeAsString[] = {
 
 ///////////////////////////////////////////////////////////////////////////////////
 ///
-///  Print out the statistics.
+///  Collect the stats and print them out before the device counters are reset.
 ///
 ///////////////////////////////////////////////////////////////////////////////////
-static void sassi_finalize()
+static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
 {
-  cudaDeviceSynchronize();
-
   FILE *fRes = fopen("sassi-branch.txt", "w");
 
   fprintf(fRes, "%-16.16s %-10.10s %-10.10s %-10.10s %-10.10s %-10.10s %-8.8s %-8.8s\n",
