@@ -42,6 +42,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include "sassi_intrinsics.h"
 #include "sassi_lazyallocator.hpp"
 #include <sassi/sassi-core.hpp>
@@ -50,7 +51,7 @@
 // this array to be __managed__ so that UVM would take care of copying data
 // back and forth.  In this example, we will just declare this array to reside
 // on the device, and we will explicitly copy the data back and forth.
-__device__ unsigned long long dynamic_instr_counts[SASSI_NUM_OPCODES];
+__managed__ unsigned long long dynamic_instr_counts[SASSI_NUM_OPCODES];
 
 ///////////////////////////////////////////////////////////////////////////////////
 ///
@@ -73,17 +74,12 @@ __device__ void sassi_before_handler(SASSIBeforeParams* bp)
 ///  Write out the statistics we've gathered.
 /// 
 ///////////////////////////////////////////////////////////////////////////////////
-static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
+void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
 {
-  unsigned long long instr_counts[SASSI_NUM_OPCODES];
-
-  // Copy the data off of the device.
-  CHECK_CUDA_ERROR(cudaMemcpyFromSymbol(&instr_counts, dynamic_instr_counts, sizeof(instr_counts)));
-
   FILE *resultFile = fopen("sassi-ophist.txt", "w");
   for (unsigned i = 0; i < SASSI_NUM_OPCODES; i++) {
-    if (instr_counts[i] > 0) {
-      fprintf(resultFile, "%-10.10s: %llu\n", SASSIInstrOpcodeStrings[i], instr_counts[i]);
+    if (dynamic_instr_counts[i] > 0) {
+      fprintf(resultFile, "%-10.10s: %llu\n", SASSIInstrOpcodeStrings[i], dynamic_instr_counts[i]);
     }
   }
   fclose(resultFile);
@@ -97,9 +93,6 @@ static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
 static sassi::lazy_allocator counterInitializer(
   /* Initialize the counters. */
   []() {
-    unsigned long long instr_counts[SASSI_NUM_OPCODES];
-    bzero(instr_counts, sizeof(instr_counts));
-    // Initialize the array we allocated on the device.
-    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(dynamic_instr_counts, &instr_counts, sizeof(instr_counts)));
+    bzero(dynamic_instr_counts, sizeof(dynamic_instr_counts));
   }, sassi_finalize);
 
