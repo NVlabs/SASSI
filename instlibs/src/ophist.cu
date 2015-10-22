@@ -28,10 +28,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * This example shows how to use SASSI to create a histogram of opcodes
- * encountered during the execution of a program.  Unlike many of the other
- * examples we include, this example does not use Unified Virtual Memory (UVM),
- * and is intended as an example that applies across all NVIDIA's architectures
- * from Fermi to Maxwell.
+ * encountered during the execution of a program. 
  *
  * The application code the user instruments should be instrumented with the
  * following SASSI flag: "-Xptxas --sassi-inst-before=all".
@@ -47,10 +44,7 @@
 #include "sassi_lazyallocator.hpp"
 #include <sassi/sassi-core.hpp>
 
-// Keep track of all the opcodes that were executed.  Normally, we would declare
-// this array to be __managed__ so that UVM would take care of copying data
-// back and forth.  In this example, we will just declare this array to reside
-// on the device, and we will explicitly copy the data back and forth.
+// Keep track of all the opcodes that were executed. 
 __managed__ unsigned long long dynamic_instr_counts[SASSI_NUM_OPCODES];
 
 ///////////////////////////////////////////////////////////////////////////////////

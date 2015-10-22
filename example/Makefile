@@ -12,7 +12,7 @@ NVCC_FLAGS += -g -O3 -dc
 CXX_FLAGS += -g -O3
 
 # What example do you want to build?
-EXAMPLES := branch none memdiverge opcode ophist valueprof
+EXAMPLES := branch none memdiverge opcode ophist ophist-fermi valueprof
 
 # Point to SASSI's copy of nvcc.
 NVCC := $(SASSI_HOME)/bin/nvcc
@@ -33,15 +33,21 @@ BEFORE_REG_INFO := -Xptxas --sassi-before-args="reg-info"
 # If we want to skip predicated off instructions, include this option.
 IFF := -Xptxas --sassi-iff-true-predicate-handler-call
 
+# If we want to debug.
 DEBUG := -Xptxas --sassi-debug
+
+# The location of our instrumentation libraries.
+INST_LIB_DIR = ../instlibs/lib
 
 # We rely heavily on CUPTI to let us know when kernels are launched.
 CUPTI_LIB_DIR = $(SASSI_HOME)/extras/CUPTI/lib64
 CUPTI = -L$(CUPTI_LIB_DIR) -lcupti 
-export LD_LIBRARY_PATH := $(CUPTI_LIB_DIR):$(LD_LIBRARY_PATH)
+export LD_LIBRARY_PATH := $(INST_LIB_DIR):$(CUPTI_LIB_DIR):$(LD_LIBRARY_PATH)
 
-# The location of our instrumentation libraries.
-INST_LIB_DIR = ../instlibs/lib
+# If you want to "intercept" main and exit, use this GCC-specific option.
+# We only use this option for Fermi examples, where we don't have the luxury
+# of using UVM.
+LDWRAP := -Xlinker "--wrap=main" -Xlinker "--wrap=exit"
 
 # Depending on the experiment, let's choose different SASSI options.
 branch: EXTRA_NVCC_FLAGS = $(BEFORE_COND_BRANCHES) $(BEFORE_COND_BRANCH_INFO) $(NVCC_FLAGS) 
@@ -58,6 +64,9 @@ opcode: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lopcode $(CUPTI) $(LINK_FLAGS)
 
 ophist: EXTRA_NVCC_FLAGS = $(BEFORE_ALL) $(NVCC_FLAGS) 
 ophist: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lophist $(CUPTI) $(LINK_FLAGS) 
+
+ophist-fermi: EXTRA_NVCC_FLAGS = $(LDWRAP) $(BEFORE_ALL) $(NVCC_FLAGS) 
+ophist-fermi: EXTRA_LINK_FLAGS = $(LDWRAP) -L$(INST_LIB_DIR) -lophist_fermi $(CUPTI) $(LINK_FLAGS) 
 
 valueprof: EXTRA_NVCC_FLAGS = $(AFTER_REG) $(AFTER_REG_INFO) $(IFF) $(NVCC_FLAGS)
 valueprof: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lvalueprof $(CUPTI) $(LINK_FLAGS) 

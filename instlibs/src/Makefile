@@ -8,14 +8,16 @@
 include ../env.mk
 
 # These libraries work with Fermi, the others do not.
-export FERMI_LIBS := libophist.a libstubs.a 
+export FERMI_LIBS := libophist_fermi.a libstubs.a
+
+export PATH := $(CCBIN):$(PATH)
 
 # Decide which libraries you want to compile.
 export LIBS := 	libbranch.a \
 		libmemdiverge.a \
 		libopcode.a \
+		libophist.a \
 		libvalueprof.a
-
 
 ifndef INSTALL_DIR
 	INSTALL_DIR := ../
@@ -49,5 +51,5 @@ $(INSTALL_DIR)/lib/lib%.a: %.o
 		-I$(INSTALL_DIR)/include
 
 clean:
-	$(RM) *.o *.a *~
+	$(RM) *.o *.a *~ 
 	$(RM) $(INSTALLED_LIBS)
