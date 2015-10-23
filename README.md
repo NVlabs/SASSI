@@ -1,3 +1,8 @@
+News
+==========================================
+
+* We are conducting a tutorial on SASSI at Micro this year.  Please register [here](http://www.microarch.org/micro48/) and see this [wiki](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial) page for more information!
+
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
 
