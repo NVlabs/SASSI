@@ -7,12 +7,8 @@ include ../instlibs/env.mk
 # Make sure NVCC uses the C++ compiler we want it to.
 export PATH := $(CCBIN):$(PATH)
 
-LINK_FLAGS += -lcudadevrt
-NVCC_FLAGS += -g -O3 -dc
-CXX_FLAGS += -g -O3
-
 # What example do you want to build?
-EXAMPLES := branch none memdiverge opcode ophist valueprof
+EXAMPLES := branch ctamemranges none memdiverge opcode ophist valueprof
 
 # Point to SASSI's copy of nvcc.
 NVCC := $(SASSI_HOME)/bin/nvcc
@@ -38,7 +34,10 @@ DEBUG := -Xptxas --sassi-debug
 # We rely heavily on CUPTI to let us know when kernels are launched.
 CUPTI_LIB_DIR = $(SASSI_HOME)/extras/CUPTI/lib64
 CUPTI = -L$(CUPTI_LIB_DIR) -lcupti 
-export LD_LIBRARY_PATH := $(CUPTI_LIB_DIR):$(LD_LIBRARY_PATH)
+
+LINK_FLAGS += -lcudadevrt -Xlinker -rpath,$(CUPTI_LIB_DIR)
+NVCC_FLAGS += -g -O3 -dc
+CXX_FLAGS += -g -O3
 
 # The location of our instrumentation libraries.
 INST_LIB_DIR = ../instlibs/lib
@@ -49,6 +48,9 @@ branch: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lbranch $(CUPTI) $(LINK_FLAGS)
 
 memdiverge: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) $(NVCC_FLAGS) 
 memdiverge: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lmemdiverge $(CUPTI) $(LINK_FLAGS) 
+
+ctamemranges: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) -Xptxas --sassi-kernel-entry $(NVCC_FLAGS) 
+ctamemranges: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lctamemranges $(CUPTI) $(LINK_FLAGS) 
 
 none: EXTRA_NVCC_FLAGS = $(NVCC_FLAGS)
 none: EXTRA_LINK_FLAGS = $(LINK_FLAGS) 

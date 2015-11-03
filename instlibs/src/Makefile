@@ -12,6 +12,7 @@ export FERMI_LIBS := libophist.a libstubs.a
 
 # Decide which libraries you want to compile.
 export LIBS := 	libbranch.a \
+		libctamemranges.a \
 		libmemdiverge.a \
 		libopcode.a \
 		libvalueprof.a
