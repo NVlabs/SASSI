@@ -1,8 +1,3 @@
-News
-==========================================
-
-* We are conducting a tutorial on SASSI at Micro this year.  Please register [here](http://www.microarch.org/micro48/) and see this [wiki](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial) page for more information!  The early registration deadline for the tutorial is November 4.
-
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
 
@@ -33,6 +28,30 @@ injecting instrumentation code during compilation.  SASSI's version of
 ptxas is distributed on GitHub via "Releases".
 * Several realistic samples that demonstrate SASSI's operation.
 
+Newest release notes
+==========================================
+
+* We have added some new features.  SASSI instrumentation can now
+  inspect the control flow graph, and users can instrument
+  kernel/function and basic block entries.
+
+* We have added support for little-endian POWER.
+
+* We allow targeted instrumentation before all control flow instructions.
+
+* We have added experimental support for end-users to emulate novel
+  instructions, e.g., to perform ISA exploration.
+
+* Bug fix.  We erroneously allowed a higher virtual architecture PTX
+  to target a lower SM architecture (e.g., code=sm_30 and
+  arch=compute_50).
+
+* We are conducting a tutorial on SASSI at Micro this year.  Please
+  register [here](http://www.microarch.org/micro48/) and see this
+  [wiki](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial) page
+  for more information!
+
+
 Prerequisites
 ------------------
 
@@ -40,9 +59,9 @@ SASSI has the following system prerequisites:
 
 1. Platform requirement: SASSI requires an X86 64-bit host; a Fermi-,
   Kepler-, or Maxwell-based GPU; and at the time of this writing we
-  have generated SASSI for Ubuntu (12 and 15), Debian 7, and CentOS 6.
+  have generated SASSI for Ubuntu (12, 14, and 15), Debian 7 and 8, and CentOS 6 and 7.
 2. Install CUDA 7: At the time of this writing, CUDA 7 can be
-  fetched [from here](https://developer.nvidia.com/cuda-downloads).
+  fetched [from here](https://developer.nvidia.com/cuda-toolkit-70).
 3. Make sure you have a 346.41 driver or newer: The CUDA 7
   installation script can install a new driver for you that meets this
   requirement.  If you already have a newer driver, that should be
