@@ -157,7 +157,7 @@ namespace sassi {
     /////////////////////////////////////////////////////////////////////////////
     void map(std::function<void (K&,V&)> fun)
     {
-      for (int entry = 0; entry < m_slots; entry++) {
+      for (unsigned entry = 0; entry < m_slots; entry++) {
 	if (m_keytable[entry].metadata == VALID_ENTRY) {
 	  fun(m_keytable[entry].key, m_valtable[entry]);
 	}
