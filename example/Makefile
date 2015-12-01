@@ -2,13 +2,13 @@ TARGET := matrixMul
 OBJECTS := matrixMul.o
 
 # Copy the environment from env.mk
-include ../instlibs/env.mk
+include ../../instlibs/env.mk
 
 # Make sure NVCC uses the C++ compiler we want it to.
 export PATH := $(CCBIN):$(PATH)
 
 # What example do you want to build?
-EXAMPLES := branch ctamemranges none memdiverge opcode ophist ophist-fermi valueprof
+EXAMPLES := branch cfg none memdiverge opcode ophist ophist-fermi valueprof
 
 # Point to SASSI's copy of nvcc.
 NVCC := $(SASSI_HOME)/bin/nvcc
@@ -52,14 +52,14 @@ LDWRAP := -Xlinker "--wrap=main" -Xlinker "--wrap=exit"
 branch: EXTRA_NVCC_FLAGS = $(BEFORE_COND_BRANCHES) $(BEFORE_COND_BRANCH_INFO) $(NVCC_FLAGS) 
 branch: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lbranch $(CUPTI) $(LINK_FLAGS) 
 
-memdiverge: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) $(NVCC_FLAGS) 
-memdiverge: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lmemdiverge $(CUPTI) $(LINK_FLAGS) 
-
-ctamemranges: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) -Xptxas --sassi-kernel-entry $(NVCC_FLAGS) 
-ctamemranges: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lctamemranges $(CUPTI) $(LINK_FLAGS) 
+cfg: EXTRA_NVCC_FLAGS = -Xptxas --sassi-function-entry -Xptxas --sassi-bb-entry $(NVCC_FLAGS)
+cfg: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lcfg $(CUPTI)
 
 none: EXTRA_NVCC_FLAGS = $(NVCC_FLAGS)
 none: EXTRA_LINK_FLAGS = $(LINK_FLAGS) 
+
+memdiverge: EXTRA_NVCC_FLAGS = $(BEFORE_MEM) $(BEFORE_MEM_INFO) $(NVCC_FLAGS) 
+memdiverge: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lmemdiverge $(CUPTI) $(LINK_FLAGS) 
 
 opcode: EXTRA_NVCC_FLAGS = $(BEFORE_ALL) $(BEFORE_REG_INFO)  $(NVCC_FLAGS) 
 opcode: EXTRA_LINK_FLAGS = -L$(INST_LIB_DIR) -lopcode $(CUPTI) $(LINK_FLAGS) 
