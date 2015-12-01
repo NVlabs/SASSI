@@ -14,7 +14,7 @@ export PATH := $(CCBIN):$(PATH)
 
 # Decide which libraries you want to compile.
 export LIBS := 	libbranch.a \
-		libctamemranges.a \
+		libcfg.a \
 		libmemdiverge.a \
 		libopcode.a \
 		libophist.a \
