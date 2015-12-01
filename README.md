@@ -39,9 +39,6 @@ Newest release notes
 
 * We allow targeted instrumentation before all control flow instructions.
 
-* We have added experimental support for end-users to emulate novel
-  instructions, e.g., to perform ISA exploration.
-
 * Bug fix.  We erroneously allowed a higher virtual architecture PTX
   to target a lower SM architecture (e.g., code=sm_30 and
   arch=compute_50).
