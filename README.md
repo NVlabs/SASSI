@@ -2,7 +2,7 @@
 News
 ==========================================
 
-* Releasing a new version of SASSI today (12/15/2015) that includes support for function, kernel, and basic block entry instrumentation.  See more details in the release note below.
+* Releasing a new version of SASSI today (12/15/2015) that includes support for function, kernel, and basic block entry instrumentation.  See more details in the release notes below.
 
 * We conducted a [tutorial at MICRO-48](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial).  You can check out the [slide deck](https://github.com/NVlabs/SASSI/blob/master/doc/SASSI-Tutorial-Micro2015.pptx) that we covered.
 
