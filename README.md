@@ -1,3 +1,11 @@
+=======
+News
+==========================================
+
+* Releasing a new version of SASSI today (12/15/2015) that includes support for function, kernel, and basic block entry instrumentation.  See more details in the release note below.
+
+* We conducted a [tutorial at MICRO-48](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial).  You can check out the [slide deck](https://github.com/NVlabs/SASSI/blob/master/doc/SASSI-Tutorial-Micro2015.pptx) that we covered.
+
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
 
@@ -42,12 +50,6 @@ Newest release notes
 * Bug fix.  We erroneously allowed a higher virtual architecture PTX
   to target a lower SM architecture (e.g., code=sm_30 and
   arch=compute_50).
-
-* We are conducting a tutorial on SASSI at Micro this year.  Please
-  register [here](http://www.microarch.org/micro48/) and see this
-  [wiki](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial) page
-  for more information!
-
 
 Prerequisites
 ------------------
