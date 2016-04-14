@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 /**
  * Copyright 1993-2014 NVIDIA Corporation.  All rights reserved.
  *

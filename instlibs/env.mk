@@ -11,8 +11,8 @@ export CCBIN ?= /usr/local/gcc-4.8.4/bin/
 # IMPORTANT: YOU MUST SPECIFY A REAL ARCHITECTURE.  IF YOUR
 # code SETTING DOES NOT HAVE THE "sm" PREFIX, YOUR INSTRUMENTATION
 # WILL NOT WORK!
-export GENCODE ?= -gencode arch=compute_50,code=sm_50 \
-		  -gencode arch=compute_35,code=sm_35
+export GENCODE ?= -gencode arch=compute_35,code=sm_35 \
+		  -gencode arch=compute_50,code=sm_50
 
 # You might want to debug an instrumentation handler.  If so, 
 # uncomment the line below.  Be aware that CUPTI and cuda-gdb do 
