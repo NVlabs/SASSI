@@ -13,12 +13,13 @@ export FERMI_LIBS := libophist_fermi.a libstubs.a
 export PATH := $(CCBIN):$(PATH)
 
 # Decide which libraries you want to compile.
-export LIBS := 	libbranch.a \
+export LIBS := 	libstubs.a \
+		libbranch.a \
 		libcfg.a \
 		libmemdiverge.a \
 		libopcode.a \
 		libophist.a \
-		libvalueprof.a
+		libvalueprof.a \
 
 ifndef INSTALL_DIR
 	INSTALL_DIR := ../

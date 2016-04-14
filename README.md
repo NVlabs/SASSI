@@ -2,9 +2,17 @@
 News
 ==========================================
 
-* Releasing a new version of SASSI today (12/15/2015) that includes support for function, kernel, and basic block entry instrumentation.  See more details in the release notes below.
+* Releasing a new version of the SASSI binary today (4/14/2015) that
+  includes some bug fixes and additional features.
 
-* We conducted a [tutorial at MICRO-48](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial).  You can check out the [slide deck](https://github.com/NVlabs/SASSI/blob/master/doc/SASSI-Tutorial-Micro2015.pptx) that we covered.
+* Including a new header-file library that allows users to correlate
+  SASS locations with the corresponding CUDA source line.
+
+* We conducted a [tutorial at
+  MICRO-48](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial).
+  You can check out the [slide
+  deck](https://github.com/NVlabs/SASSI/blob/master/doc/SASSI-Tutorial-Micro2015.pptx)
+  that we covered.
 
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
@@ -39,17 +47,20 @@ ptxas is distributed on GitHub via "Releases".
 Newest release notes
 ==========================================
 
-* We have added some new features.  SASSI instrumentation can now
-  inspect the control flow graph, and users can instrument
-  kernel/function and basic block entries.
+* We have added some new features. There is a new instrumentation
+  library that demonstrates how to map a SASS instruction with a given
+  PUPC (SASSI's version of a PC) to the CUDA source.  See the "branch"
+  library for its usage.  Also see the `branch` target in
+  `example/Makefile` for the compiler flags necessary to use the new
+  feature.
 
-* We have added support for little-endian POWER.
+* Support for emulating novel SASS instructions for ISA exploration is
+  more stable.  We have not yet documented this feature because we are
+  still working out the kinks, but if you are interested in this
+  feature, please contact me.
 
-* We allow targeted instrumentation before all control flow instructions.
-
-* Bug fix.  We erroneously allowed a higher virtual architecture PTX
-  to target a lower SM architecture (e.g., code=sm_30 and
-  arch=compute_50).
+* Bug fix.  The PUPC was invalid for functions with long names.  This
+  fix requires installing the latest SASSI binaries.
 
 Prerequisites
 ------------------
