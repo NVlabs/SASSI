@@ -152,6 +152,8 @@ namespace sassi {
       }
       else if (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020)
       {
+        cudaDeviceSynchronize();
+
         // Call the init_cb function only once. 
         if(!ld->valid_data) {
           ld->valid_data = true;
