@@ -48,6 +48,7 @@ $(INSTALL_DIR)/lib/lib%.a: %.o
 		--maxrregcount=16          \
 		--compiler-options -Wall   \
 		-I$(SASSI_HOME)/include    \
+		-I$(BOOST_HOME)/include    \
 		-I$(CUPTI)/include/        \
 		-I$(INSTALL_DIR)/utils/    \
 		-I$(INSTALL_DIR)/include

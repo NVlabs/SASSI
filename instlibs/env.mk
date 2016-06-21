@@ -20,3 +20,7 @@ export GENCODE ?= -gencode arch=compute_35,code=sm_35 \
 # not using any CUPTI-related libraries if you want to debug an
 # instrumentation handler...
 #export DEBUG = -G -g
+
+# If you use the src_map example, it relies on boost.  You can
+# set the location here.
+export BOOST_HOME ?=

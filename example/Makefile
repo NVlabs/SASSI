@@ -50,7 +50,7 @@ LDWRAP := -Xlinker "--wrap=main" -Xlinker "--wrap=exit"
 
 # Depending on the experiment, let's choose different SASSI options.
 branch: EXTRA_NVCC_FLAGS = $(LDWRAP) -lineinfo $(BEFORE_COND_BRANCHES) $(BEFORE_COND_BRANCH_INFO) $(NVCC_FLAGS) 
-branch: EXTRA_LINK_FLAGS = $(LDWRAP) -L$(INST_LIB_DIR) -lbranch $(CUPTI) $(LINK_FLAGS) -lboost_regex -lcrypto
+branch: EXTRA_LINK_FLAGS = $(LDWRAP) -L$(INST_LIB_DIR) -lbranch $(CUPTI) $(LINK_FLAGS) -L$(BOOST_HOME)/lib -lboost_regex -lcrypto -Xlinker -rpath,$(BOOST_HOME)/lib
 
 cfg: EXTRA_NVCC_FLAGS = -Xptxas --sassi-function-entry -Xptxas --sassi-bb-entry $(NVCC_FLAGS)
 cfg: EXTRA_LINK_FLAGS = $(LINK_FLAGS) -L$(INST_LIB_DIR) -lcfg $(CUPTI)
