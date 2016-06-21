@@ -38,7 +38,10 @@ for guiding instrumentation sites, but the two most common are:\\
 
 As the name implies \texttt{--sassi-inst-before} inserts
 instrumentation code before certain instructions, and
-\texttt{--sassi-inst-after} inserts code after instructions.  The two
+\texttt{--sassi-inst-after} inserts code after
+instructions. {\hl{Please read section}~\ref{sec:after-pitfalls} \hl{for restrictions and pitfalls when inserting instrumentation after instructions.}}
+
+The two
 flags take a comma-separated list of instrumentation sites.
 
 \begin{table}[h]
@@ -94,7 +97,7 @@ If you pass \texttt{--sassi-inst-before} or
 \texttt{--sassi-inst-after} invalid arguments, SASSI will abort the
 compilation with an error.  The \texttt{--sassi-inst-after} option
 does not allow for instrumentation after any class of instructions
-that includes branches.  This simplifies code generation and user
+that includes branches. This simplifies code generation and user
 expectations.  Note, as Section~\ref{sec:example2} shows, it is still
 possible to determine where a branch \emph{will} go using SASSI.
 
@@ -224,7 +227,7 @@ comma-separated list of values.  Currently, allowed values for
 \texttt{--sassi-before-args} are `cond-branch-info', `mem-info',
 and `reg-info'.  Table~\ref{tab:before-args} summarizes the
 functions of these values.  Similarly, Table~\ref{tab:after-args}
-summarizes the allowable options for ``after'' instrumentation.
+summarizes the allowable options for ``after'' instrumentation. 
 
 \begin{table}
 \center
@@ -283,3 +286,31 @@ When you specify additional arguments to be passed, SASSI will tell
 you the order it in which it will pass the arguments to the handler.
 It is important that you link in a handler that matches the type
 signature SASSI demands, or your link step will fail.
+
+\subsection{After Instrumentation: Use Caution}
+\label{sec:after-pitfalls}
+
+{\hl{Instrumenting after instructions in general requires extra care.}}
+While SASSI makes it possible to add instrumentation after most
+instructions, some things are awkward or misleading. SASSI does not
+preserve state across instrumented instructions. When passing
+parameters to ``after'' instrumentation handlers, use caution because
+the state may have changed. For instance, consider this example:
+\begin{verbatim}
+LD R4 [R4+8]
+\end{verbatim}
+where we are loading a value from the address in \texttt{R4} plus
+eight, and then placing the value loaded back in \texttt{R4}. SASSI
+allows you to add instrumentation after memory operations, and
+furthermore, it allows you to check the address of the memory
+operation. In this case, however, the address will be wrong, because
+the value used to compute the address was clobbered. As another
+example, it is possible to pass register information to an ``after''
+instrumentation handler. You can query which registers are sources and
+destinations, and you can even inspect their values. However, the
+values are those after the instruction has executed. In the case of
+the above example, \texttt{R4} is both a source and a destination. If we check
+to see what the value in \texttt{R4} is, it will be the value after the
+instruction has executed. A soon-to-be-released version will restrict
+what is possible in ``after'' instrumentation to reduce this
+confusion.

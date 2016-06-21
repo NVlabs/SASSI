@@ -1,3 +1,19 @@
+=======
+News
+==========================================
+
+* Releasing a new version of the SASSI binary today (4/14/2015) that
+  includes some bug fixes and additional features.
+
+* Including a new header-file library that allows users to correlate
+  SASS locations with the corresponding CUDA source line.
+
+* We conducted a [tutorial at
+  MICRO-48](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial).
+  You can check out the [slide
+  deck](https://github.com/NVlabs/SASSI/blob/master/doc/SASSI-Tutorial-Micro2015.pptx)
+  that we covered.
+
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
 
@@ -28,6 +44,24 @@ injecting instrumentation code during compilation.  SASSI's version of
 ptxas is distributed on GitHub via "Releases".
 * Several realistic samples that demonstrate SASSI's operation.
 
+Newest release notes
+==========================================
+
+* We have added some new features. There is a new instrumentation
+  library that demonstrates how to map a SASS instruction with a given
+  PUPC (SASSI's version of a PC) to the CUDA source.  See the "branch"
+  library for its usage.  Also see the `branch` target in
+  `example/Makefile` for the compiler flags necessary to use the new
+  feature.
+
+* Support for emulating novel SASS instructions for ISA exploration is
+  more stable.  We have not yet documented this feature because we are
+  still working out the kinks, but if you are interested in this
+  feature, please contact me.
+
+* Bug fix.  The PUPC was invalid for functions with long names.  This
+  fix requires installing the latest SASSI binaries.
+
 Prerequisites
 ------------------
 
@@ -35,9 +69,9 @@ SASSI has the following system prerequisites:
 
 1. Platform requirement: SASSI requires an X86 64-bit host; a Fermi-,
   Kepler-, or Maxwell-based GPU; and at the time of this writing we
-  have generated SASSI for Ubuntu (12 and 15), Debian 7, and CentOS 6.
+  have generated SASSI for Ubuntu (12, 14, and 15), Debian 7 and 8, and CentOS 6 and 7.
 2. Install CUDA 7: At the time of this writing, CUDA 7 can be
-  fetched [from here](https://developer.nvidia.com/cuda-downloads).
+  fetched [from here](https://developer.nvidia.com/cuda-toolkit-70).
 3. Make sure you have a 346.41 driver or newer: The CUDA 7
   installation script can install a new driver for you that meets this
   requirement.  If you already have a newer driver, that should be

@@ -37,6 +37,22 @@
  * following SASSI flag: -Xptxas --sassi-inst-before="cond-branches" \
  *                       -Xptxas --sassi-before-args="cond-branch-info".
  *
+ * In addition, be sure to link your application with flags necessary to 
+ * hijack "main" and "exit".  You can trivially do this using GNU tools with
+ *
+ *       -Xlinker "--wrap=main" -Xlinker "--wrap=exit"
+ *
+ * This will cause calls to main and exit to be replaced by calls to 
+ * __wrap_exit(int status) and __wrap_main(int argc, char **argv), which we have
+ * defined below.  This allows us to do initialization and finalization without
+ * having to worry about object constructor and destructor orders.
+ *
+ * This version of the library also lets us correlate SASS location to the
+ * corresponding CUDA source locations.  To use this feature, you must 
+ * compile your application with the "-lineinfo" option.
+ *
+ * See the branch example in example/Makfile for all the flags you should use.
+ *
 \***********************************************************************************/
 
 #define __STDC_FORMAT_MACROS
@@ -50,7 +66,7 @@
 #include <unistd.h>
 #include "sassi_intrinsics.h"
 #include "sassi_dictionary.hpp"
-#include "sassi_lazyallocator.hpp"
+#include "sassi_srcmap.hpp"
 #include <sassi/sassi-core.hpp>
 #include <sassi/sassi-branch.hpp>
 
@@ -65,9 +81,11 @@ struct BranchCounter {
   unsigned long long activeThreads;       // Number of active threads.
 };                                        
 
+static sassi::src_mapper *sassiMapper;
+
 // The actual dictionary of counters, where the key is a branch's PC, and
 // the value is the set of counters associated with it.
-static __managed__ sassi::dictionary<uint64_t, BranchCounter> *sassi_stats;
+static __managed__ sassi::dictionary<uint64_t, BranchCounter> *sassiStats;
 
 // Convert the SASSIBranchType to a string that we can print.  See the
 // CUDA binary utilities webpage for more information about these types.
@@ -75,50 +93,109 @@ const char *SASSIBranchTypeAsString[] = {
   "BRX", "BRA", "RET", "EXIT", "SYNC", "OTHER"
 };
 
+
 ///////////////////////////////////////////////////////////////////////////////////
 ///
 ///  Collect the stats and print them out before the device counters are reset.
 ///
 ///////////////////////////////////////////////////////////////////////////////////
-static void sassi_finalize(sassi::lazy_allocator::device_reset_reason reason)
+static void sassi_finalize(__attribute__((unused)) sassi::cupti_wrapper *wrapper, 
+			   __attribute__((unused)) const CUpti_CallbackData *cb)
 {
-  FILE *fRes = fopen("sassi-branch.txt", "w");
+  // This function will be called either when 1) the device is reset, or 2) the
+  // the program is about to exit.  Let's check to see whether the sassiStats
+  // map is still valid.  For instance, the user could have reset the device 
+  // before the program exited, which would essentially invalidate all device
+  // data. (In fact, explicitly reseting the device before program exit is
+  // considered best practice.)
+  if (sassiMapper->is_device_state_valid())
+  {
+    FILE *fRes = fopen("sassi-branch.txt", "w");
+    
+    fprintf(fRes, "%-16.16s %-10.10s %-10.10s %-10.10s %-10.10s %-10.10s %-8.8s %-8.8s Location\n",
+	    "Address", "Total/32", "Dvrge/32", "Active", "Taken", "NTaken", 
+	    "Type", ".U");
 
-  fprintf(fRes, "%-16.16s %-10.10s %-10.10s %-10.10s %-10.10s %-10.10s %-8.8s %-8.8s\n",
-	  "Address", "Total/32", "Dvrge/32", "Active", "Taken", "NTaken", 
-	  "Type", ".U");
+    // Get the SASS PUPC to source code line mapping.
+    auto const locMapper = sassiMapper->get_location_map();
+    
+    sassiStats->map([fRes,&locMapper](uint64_t& pupc, BranchCounter& val) {
+	assert(val.address == pupc);
+	
+	fprintf(fRes, "%-16.16" PRIx64 
+		" %-10.llu %-10.llu %-10.llu %-10.llu %-10.llu %-8.4s %-8.d ",
+		pupc,
+		val.totalBranches, 
+		val.divergentBranches,
+		val.activeThreads,
+		val.takenThreads,
+		val.takenNotThreads,
+		SASSIBranchTypeAsString[val.branchType],
+		val.taggedUnanimous
+		);      
+
+	// See if there is a source code mapping for this PUPC.  If you 
+	// compiled your code with "-lineinfo" there should be a valid
+	// mapping.
+	auto it = locMapper.find(pupc);
+	if (it != locMapper.end()) {
+	  fprintf(fRes, "%s, line %d\n", it->second.file_name->c_str(), it->second.line_num);
+	} else {
+	  fprintf(fRes, "\n");
+	}
+      });
   
-  sassi_stats->map([fRes](uint64_t& key, BranchCounter& val) {
-      assert(val.address == key);
-      fprintf(fRes, "%-16.16" PRIx64 
-	      " %-10.llu %-10.llu %-10.llu %-10.llu %-10.llu %-8.4s %-8.d\n",
-	      key,
-	      val.totalBranches, 
-	      val.divergentBranches,
-	      val.activeThreads,
-	      val.takenThreads,
-	      val.takenNotThreads,
-	      SASSIBranchTypeAsString[val.branchType],
-	      val.taggedUnanimous);      
-    });
-  
-  fclose(fRes);
+    fclose(fRes);
+  }
 }
 
+///////////////////////////////////////////////////////////////////////////////////
+/// 
+///  We will compile our application using ld's --wrap option, which in this
+///  case lets us replace calls to "exit" with calls to "__wrap_exit".  See
+///  the make target "ophist-fermi" in ./example/Makefile to see how this
+///  is done.
+///
+///  This should allow us to perform CUDA operations before the CUDA runtime
+///  starts shutting down.  In particular, we want to copy our
+///  "dynamic_instr_counts" off the device.  If we used UVM, this would happen
+///  automatically for us.  But since we don't have the luxury of using UVM
+///  for Fermi, we have to make sure that the CUDA runtime is still up and
+///  running before trying to issue a cudaMemcpy.  Hence these shenanigans.
+/// 
+///////////////////////////////////////////////////////////////////////////////////
+extern "C" void __real_exit(int status);
+extern "C" void __wrap_exit(int status)
+{
+  sassi_finalize(NULL, NULL);
+  __real_exit(status);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////
-///
-///  Lazily allocate a dictionary before the first kernel launch. The dictionary 
-///  will be available on the host and the device.  The allocator takes two 
-///  functions: the first is an initialization function that's called once before 
-///  any kernels run.  The next is a finalize function that's called before the 
-///  program exits, or right before the device is reset.
-///
+/// 
+///  For programs that don't call exit explicitly, let's catch the fallthrough.
+/// 
 ///////////////////////////////////////////////////////////////////////////////////
-static sassi::lazy_allocator mapAllocator([]() {
-    sassi_stats = new sassi::dictionary<uint64_t, BranchCounter>();
-  }, sassi_finalize);
+extern "C" int __real_main(int argc, char **argv);
+extern "C" int __wrap_main(int argc, char **argv)
+{
+  // Initialize a src_mapper to give us SASS PC->CUDA line mappings.
+  sassiMapper = new sassi::src_mapper();
 
+  // Initialize a hashmap to keep track of statistics of branches.  The key
+  // is the PC, the value is a BranchCounter.
+  sassiStats = new sassi::dictionary<uint64_t, BranchCounter>();
+
+  // Whenever the device is reset, be sure to print out the counters before
+  // they are clobbered.
+  sassiMapper->register_callback(sassi::cupti_wrapper::event_type::DEVICE_RESET, 
+				 sassi::cupti_wrapper::callback_before,
+				 sassi_finalize);
+
+  int ret = __real_main(argc, argv);
+  sassi_finalize(NULL, NULL);
+  return ret;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////
 //
@@ -145,18 +222,18 @@ __device__ void sassi_before_handler(SASSIBeforeParams *bp, SASSICondBranchParam
   // The first active thread in each warp gets to write results.
   if ((__ffs(active)-1) == threadIdxInWarp) {
     // Get the address, we'll use it for hashing.
-    uint64_t inst_addr = bp->GetPUPC();
+    uint64_t instAddr = bp->GetPUPC();
     
-    // Looks up the counters associated with 'inst_addr', but if no such entry
+    // Looks up the counters associated with 'instAddr', but if no such entry
     // exits, initialize the counters in the lambda.
-    BranchCounter *stats = (*sassi_stats).getOrInit(inst_addr, [inst_addr,brp](BranchCounter* v) {
-	v->address = inst_addr;
+    BranchCounter *stats = (*sassiStats).getOrInit(instAddr, [instAddr,brp](BranchCounter* v) {
+	v->address = instAddr;
 	v->branchType = brp->GetType();
 	v->taggedUnanimous = brp->IsUnanimous();
       });
 
     // Why not sanity check the hash map?
-    assert(stats->address == inst_addr);
+    assert(stats->address == instAddr);
     assert(numTaken + numNotTaken == numActive);
 
     // Increment the various counters that are associated
