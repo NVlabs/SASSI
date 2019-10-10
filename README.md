@@ -1,8 +1,9 @@
-=======
-SASSI is deprecated
+SASSI is deprecated!
 ==========================================
 
 SASSI is now officially too old to use.  For your current NVIDIA GPU instrumentation needs, please use [NVBit!](https://github.com/NVlabs/NVBit)
+
+
 
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
