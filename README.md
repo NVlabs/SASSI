@@ -1,18 +1,8 @@
 =======
-News
+SASSI is deprecated
 ==========================================
 
-* Releasing a new version of the SASSI binary today (4/14/2015) that
-  includes some bug fixes and additional features.
-
-* Including a new header-file library that allows users to correlate
-  SASS locations with the corresponding CUDA source line.
-
-* We conducted a [tutorial at
-  MICRO-48](https://github.com/NVlabs/SASSI/wiki/MICRO48-Tutorial).
-  You can check out the [slide
-  deck](https://github.com/NVlabs/SASSI/blob/master/doc/SASSI-Tutorial-Micro2015.pptx)
-  that we covered.
+SASSI is now officially too old to use.  For your current NVIDIA GPU instrumentation needs, please use [NVBit!](https://github.com/NVlabs/NVBit)
 
 SASSI Instrumentation Tool for NVIDIA GPUs
 ==========================================
